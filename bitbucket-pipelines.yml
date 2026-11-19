@@ -1,0 +1,54 @@
+# Bitbucket Pipelines – sestaví linuxovou verzi Steam Auto-Shutdown.
+#
+# Spuštění:
+#   * ručně: Pipelines → Run pipeline → custom: build-linux
+#   * automaticky: pushnutím tagu v* (např. v1.0.0)
+#
+# Hotový soubor je vždy ke stažení u běhu pipeline (Artifacts, drží se 14 dní).
+# Pokud v Repository settings → Repository variables nastavíš zabezpečenou
+# proměnnou BB_ACCESS_TOKEN (Repository access token se scope "repository:write"),
+# soubor se navíc nahraje do sekce Downloads repozitáře.
+
+image: ubuntu:22.04   # starší glibc = binárka poběží na více distribucích
+
+definitions:
+  steps:
+    - step: &build-linux
+        name: Build Linux
+        script:
+          - export DEBIAN_FRONTEND=noninteractive
+          - apt-get update -qq
+          - >
+            apt-get install -y -qq --no-install-recommends
+            curl ca-certificates binutils
+            libx11-6 libxext6 libxrender1 libxft2 libxss1 libfontconfig1
+          # uv dodá Python (python-build-standalone) včetně tkinteru
+          - curl -LsSf https://astral.sh/uv/0.13.0/install.sh | sh
+          - export PATH="$HOME/.local/bin:$PATH"
+          - uv venv --python 3.12 .venv
+          - uv pip install --python .venv pyinstaller==6.22.3
+          - .venv/bin/python -c "import tkinter, _tkinter; print('tkinter', tkinter.TkVersion)"
+          - .venv/bin/python -m PyInstaller --noconfirm --clean SteamAutoShutdown.spec
+          - VERSION="${BITBUCKET_TAG:-build-$BITBUCKET_BUILD_NUMBER}"
+          - OUT="SteamAutoShutdown-linux-$VERSION.tar.gz"
+          - tar -czf "$OUT" -C dist SteamAutoShutdown
+          - ls -lh "$OUT"
+          - |
+            if [ -n "$BB_ACCESS_TOKEN" ]; then
+              curl -sSf -X POST -H "Authorization: Bearer $BB_ACCESS_TOKEN" \
+                "https://api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_FULL_NAME/downloads" \
+                -F "files=@$OUT"
+              echo "Nahráno do Downloads: $OUT"
+            else
+              echo "BB_ACCESS_TOKEN není nastaven – soubor najdeš jen v Artifacts tohoto běhu."
+            fi
+        artifacts:
+          - SteamAutoShutdown-linux-*.tar.gz
+
+pipelines:
+  custom:
+    build-linux:
+      - step: *build-linux
+  tags:
+    "v*":
+      - step: *build-linux

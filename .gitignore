@@ -48,3 +48,13 @@ Thumbs.db
 *.mov
 *.wmv
 
+
+# Steam Auto-Shutdown
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.tar.gz
+*.zip
+.DS_Store

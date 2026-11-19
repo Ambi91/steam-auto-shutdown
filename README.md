@@ -1,0 +1,78 @@
+# Steam Auto-Shutdown
+
+Malá aplikace, která po dokončení stahování ve Steamu vypne, uspí nebo restartuje počítač.
+Funguje na Windows, macOS i Linuxu.
+
+## Používání
+
+1. Spusť aplikaci. Sama najde Steam a ukáže, co se právě stahuje.
+   Pokud máš Steam jinde, vyber jeho složku tlačítkem **Složka Steamu…**.
+2. Zvol, co se má stát: **Vypnout**, **Uspat** nebo **Restartovat**.
+3. Klikni na **Spustit hlídání** a nech Steam stahovat.
+4. Když se nic nestahuje po nastavenou dobu (výchozí 2 min), objeví se okno s odpočtem
+   (výchozí 60 s). Kliknutím na **Zrušit** akci stopneš.
+
+Tip: poprvé zkus **Zkušební režim**, ve kterém se nic nevypne, jen se ukáže odpočet.
+
+## Instalace
+
+Hotové soubory jsou v sekci **Downloads** tohoto repozitáře na Bitbucketu.
+
+| Systém  | Soubor                              | Spuštění |
+|---------|-------------------------------------|----------|
+| Windows | `SteamAutoShutdown-windows-*.zip`   | Rozbal a spusť `SteamAutoShutdown.exe`. SmartScreen může zobrazit varování: *Další informace → Přesto spustit*. |
+| macOS   | `SteamAutoShutdown-macos-*.zip`     | Rozbal, přesuň `Steam Auto-Shutdown.app` do Aplikací a poprvé ji otevři přes *pravé tlačítko → Otevřít* (aplikace není podepsaná). Při prvním vypínání povol ovládání „System Events“. |
+| Linux   | `SteamAutoShutdown-linux-*.tar.gz`  | Rozbal a spusť `./SteamAutoShutdown`. Vypíná přes `systemctl`, což na běžných desktopových distribucích funguje bez sudo. |
+
+## Jak to funguje
+
+Steam si u každé hry vede soubor `steamapps/appmanifest_<id>.acf`, ve kterém je stav
+(`StateFlags`) a kolik bajtů zbývá stáhnout. Aplikace tyto soubory každých 5 s čte
+ve všech knihovnách Steamu (podle `libraryfolders.vdf`). Hru, kterou máš ve Steamu
+pozastavenou, ignoruje.
+
+## Sestavení
+
+PyInstaller sestavuje vždy jen pro systém, na kterém běží. Proto:
+
+### Linux – Bitbucket Pipelines (automaticky)
+
+Konfigurace je v `bitbucket-pipelines.yml`. Sestavení spustíš ručně
+(*Pipelines → Run pipeline → custom: build-linux*) nebo pushnutím tagu:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+Výsledek je u běhu pipeline v záložce *Artifacts*. Aby se sám nahrál do
+*Downloads*, vytvoř v *Repository settings → Access tokens* token se scope
+**Repositories: Write** a ulož ho do *Repository settings → Repository variables*
+jako zabezpečenou proměnnou `BB_ACCESS_TOKEN`. Pipelines je potřeba jednou
+zapnout v *Repository settings → Pipelines → Settings*.
+
+### macOS a Windows – ručně na daném počítači
+
+Potřebuješ jen [uv](https://docs.astral.sh/uv/). Python s tkinterem si stáhne sám.
+
+macOS:
+
+```bash
+uv venv --python 3.12 .venv
+uv pip install --python .venv pyinstaller==6.22.3
+.venv/bin/python -m PyInstaller --noconfirm --clean SteamAutoShutdown.spec
+ditto -c -k --keepParent "dist/Steam Auto-Shutdown.app" dist/SteamAutoShutdown-macos-v1.0.0.zip
+```
+
+Windows (PowerShell):
+
+```powershell
+uv venv --python 3.12 .venv
+uv pip install --python .venv pyinstaller==6.22.3
+.venv\Scripts\python -m PyInstaller --noconfirm --clean SteamAutoShutdown.spec
+Compress-Archive dist\SteamAutoShutdown.exe dist\SteamAutoShutdown-windows-v1.0.0.zip
+```
+
+Výsledný `.zip` nahraj v repozitáři na Bitbucketu do *Downloads → Add files*.
+
+Bez sestavování to jde spustit i přímo: `python3 steam_autoshutdown_gui.py`
+(GUI) nebo `python3 steam_autoshutdown.py` (verze pro terminál).
