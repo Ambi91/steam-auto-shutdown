@@ -16,7 +16,9 @@ Tip: poprvé zkus **Zkušební režim**, ve kterém se nic nevypne, jen se uká�
 
 ## Instalace
 
-Hotové soubory jsou v sekci **Downloads** tohoto repozitáře na Bitbucketu.
+Hotové soubory najdeš na GitHubu v sekci **Releases**
+(https://github.com/Ambi91/steam-auto-shutdown/releases), případně na Bitbucketu
+v sekci **Downloads**.
 
 | Systém  | Soubor                              | Spuštění |
 |---------|-------------------------------------|----------|
@@ -34,6 +36,15 @@ pozastavenou, ignoruje.
 ## Sestavení
 
 PyInstaller sestavuje vždy jen pro systém, na kterém běží. Proto:
+
+### Všechny systémy – GitHub Actions (automaticky, doporučeno)
+
+Konfigurace je v `.github/workflows/build.yml`. GitHub sestaví verze pro
+Windows, macOS i Linux na svých serverech. Spuštění:
+
+- ručně: *Actions → Build → Run workflow*. Soubory pak najdeš u běhu v sekci *Artifacts*.
+- vydáním verze: `git tag v1.0.0 && git push github v1.0.0`. Vytvoří se Release
+  se všemi třemi soubory.
 
 ### Linux – Bitbucket Pipelines (automaticky)
 
