@@ -16,9 +16,8 @@ Tip: poprvé zkus **Zkušební režim**, ve kterém se nic nevypne, jen se uká�
 
 ## Instalace
 
-Hotové soubory najdeš na GitHubu v sekci **Releases**
-(https://github.com/Ambi91/steam-auto-shutdown/releases), případně na Bitbucketu
-v sekci **Downloads**.
+Hotové soubory najdeš na GitHubu v sekci **Releases**:
+https://github.com/Ambi91/steam-auto-shutdown/releases
 
 | Systém  | Soubor                              | Spuštění |
 |---------|-------------------------------------|----------|
@@ -43,29 +42,14 @@ Konfigurace je v `.github/workflows/build.yml`. GitHub sestaví verze pro
 Windows, macOS i Linux na svých serverech. Spuštění:
 
 - ručně: *Actions → Build → Run workflow*. Soubory pak najdeš u běhu v sekci *Artifacts*.
-- vydáním verze: `git tag v1.0.0 && git push github v1.0.0`. Vytvoří se Release
+- vydáním verze: `git tag v1.0.0 && git push origin v1.0.0`. Vytvoří se Release
   se všemi třemi soubory.
 
-### Linux – Bitbucket Pipelines (automaticky)
-
-Konfigurace je v `bitbucket-pipelines.yml`. Sestavení spustíš ručně
-(*Pipelines → Run pipeline → custom: build-linux*) nebo pushnutím tagu:
-
-```bash
-git tag v1.0.0 && git push origin v1.0.0
-```
-
-Výsledek je u běhu pipeline v záložce *Artifacts*. Aby se sám nahrál do
-*Downloads*, vytvoř v *Repository settings → Access tokens* token se scope
-**Repositories: Write** a ulož ho do *Repository settings → Repository variables*
-jako zabezpečenou proměnnou `BB_ACCESS_TOKEN`. Pipelines je potřeba jednou
-zapnout v *Repository settings → Pipelines → Settings*.
-
-### macOS a Windows – ručně na daném počítači
+### Ručně na daném počítači
 
 Potřebuješ jen [uv](https://docs.astral.sh/uv/). Python s tkinterem si stáhne sám.
 
-macOS:
+macOS (na Linuxu stejně, jen bez posledního řádku):
 
 ```bash
 uv venv --python 3.12 .venv
@@ -82,8 +66,6 @@ uv pip install --python .venv pyinstaller==6.22.3
 .venv\Scripts\python -m PyInstaller --noconfirm --clean SteamAutoShutdown.spec
 Compress-Archive dist\SteamAutoShutdown.exe dist\SteamAutoShutdown-windows-v1.0.0.zip
 ```
-
-Výsledný `.zip` nahraj v repozitáři na Bitbucketu do *Downloads → Add files*.
 
 Bez sestavování to jde spustit i přímo: `python3 steam_autoshutdown_gui.py`
 (GUI) nebo `python3 steam_autoshutdown.py` (verze pro terminál).
