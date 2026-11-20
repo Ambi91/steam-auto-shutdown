@@ -171,7 +171,17 @@ def find_libraries(steam_root=None):
 # --- Download state --------------------------------------------------------
 def scan(libraries):
     """Return the games being downloaded: [(name, downloaded, total, StateFlags)]."""
-    active = []
+    return [item[1:] for item in scan_states(libraries)[0]]
+
+
+def scan_states(libraries):
+    """One pass over all manifests. Returns (active, paused), both as lists of
+    (appid, name, downloaded, total, StateFlags).
+
+    active – downloading now or waiting in Steam's download queue
+    paused – download paused in Steam (not active)
+    """
+    active, paused_items = [], []
     for lib in libraries:
         for acf in lib.glob("appmanifest_*.acf"):
             try:
@@ -191,9 +201,13 @@ def scan(libraries):
             # A paused app keeps "Update started" set, so pause wins over the
             # active flags – unless Steam reports it is actually downloading.
             downloading = bool(flags & DOWNLOADING)
+            appid = app.get("appid") or acf.stem
+            item = (appid, app.get("name", acf.stem), done, to_dl, flags)
             if downloading or (not paused and (running or queued)):
-                active.append((app.get("name", acf.stem), done, to_dl, flags))
-    return active
+                active.append(item)
+            elif paused:
+                paused_items.append(item)
+    return active, paused_items
 
 
 def fmt_bytes(n):
@@ -280,17 +294,23 @@ def main():
 
     seen_download = args.no_wait_start
     idle_since = None
+    watched = set()  # appids seen active during this watch; pausing one of them holds the action
     print(t("cli_watching", interval=args.interval))
     try:
         while True:
-            active = scan(libs)
+            active, paused = scan_states(libs)
+            watched.update(item[0] for item in active)
+            held = [item for item in paused if item[0] in watched]
             now = time.time()
             stamp = time.strftime("%H:%M:%S")
             if active:
                 seen_download, idle_since = True, None
                 desc = ", ".join(f"{n} ({fmt_bytes(d)}/{fmt_bytes(t)})" if t else n
-                                 for n, d, t, _ in active)
+                                 for _, n, d, t, _ in active)
                 print(t("cli_downloading", stamp=stamp, desc=desc))
+            elif held:
+                idle_since = None
+                print(t("cli_paused", stamp=stamp, names=", ".join(item[1] for item in held)))
             elif not seen_download:
                 print(t("cli_waiting_start", stamp=stamp))
             else:

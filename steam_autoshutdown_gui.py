@@ -19,7 +19,8 @@ from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from i18n import LANGUAGES, get_language, load_saved_language, save_language, set_language, t
-from steam_autoshutdown import FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command, scan
+from steam_autoshutdown import (FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command,
+                                scan_states)
 
 APP_NAME = "Auto Shutdown for Steam"
 SCAN_INTERVAL_MS = 5000   # how often Steam manifests are read
@@ -37,6 +38,7 @@ COLORS = {
     "waiting": "#3B82F6",      # blue – watching, nothing downloading yet
     "downloading": "#22C55E",  # green – downloads in progress
     "verifying": "#F59E0B",    # amber – quiet period before the countdown
+    "paused": "#8B5CF6",       # violet – a watched download is paused, action on hold
     "countdown": "#EF4444",    # red – countdown running / action in progress
     "error": "#EF4444",
 }
@@ -100,7 +102,7 @@ class StatusIndicator(tk.Canvas):
 
     def _animate(self):
         self.draw()
-        animated = self.mode in ("waiting", "downloading", "verifying", "countdown")
+        animated = self.mode in ("waiting", "downloading", "verifying", "countdown", "paused")
         # Static states still redraw now and then to follow a light/dark mode switch.
         self._job = self.after(self.FRAME_MS if animated else 1000, self._animate)
 
@@ -137,7 +139,7 @@ class StatusIndicator(tk.Canvas):
                                 style="arc", outline=color, width=5)
 
         # The dot "breathes" gently while watching.
-        if self.mode in ("waiting", "downloading", "verifying", "countdown"):
+        if self.mode in ("waiting", "downloading", "verifying", "countdown", "paused"):
             r += 1.5 * math.sin(t * 2 * math.pi / 1.6)
         self.create_oval(cx - r, cy - r, cx + r, cy + r, fill=color, outline="")
 
@@ -246,6 +248,40 @@ class CountdownDialog(tk.Toplevel):
         self.on_done()
 
 
+class HelpWindow(tk.Toplevel):
+    """Read-only help text. Lines starting with "# " are headings."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title(t("help_title"))
+        self.geometry("560x520")
+        self.minsize(420, 320)
+        bg, fg = theme_colors(parent)
+        self.config(bg=bg)
+        frm = ttk.Frame(self, padding=(16, 14))
+        frm.pack(fill="both", expand=True)
+        ttk.Button(frm, text=t("help_close"), command=self.destroy).pack(side="bottom", anchor="e", pady=(10, 0))
+        text = tk.Text(frm, wrap="word", relief="flat", borderwidth=0, highlightthickness=0,
+                       bg=bg, fg=fg, font=ui_font(12), padx=4, pady=4, spacing2=2, cursor="arrow")
+        scroll = ttk.Scrollbar(frm, command=text.yview)
+        text.config(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        text.pack(side="left", fill="both", expand=True)
+        text.tag_configure("h", font=ui_font(14, True), spacing1=10, spacing3=4)
+        text.tag_configure("p", spacing3=2)
+        for line in t("help_text").splitlines():
+            if line.startswith("# "):
+                text.insert("end", line[2:] + "\n", "h")
+            else:
+                text.insert("end", line + "\n", "p")
+        text.config(state="disabled")
+        text.mark_set("insert", "1.0")
+        self.after_idle(lambda: text.yview_moveto(0))  # start at the top
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.transient(parent)
+        self.focus_force()
+
+
 class FlagsTooltip(tk.Toplevel):
     """Borderless popup listing every StateFlags bit and its meaning."""
 
@@ -282,6 +318,9 @@ class App(ttk.Frame):
         # The status line is kept as (key, params) so it can be re-translated on language change.
         self._status = ("status_off", {})
         self.active = []
+        self.paused = []
+        self.watched = set()  # appids seen downloading during this watch
+        self.help_window = None
 
         self.action_key = ACTIONS[0]
         self.action_label = tk.StringVar()
@@ -307,6 +346,7 @@ class App(ttk.Frame):
         lang_box.pack(side="right")
         lang_box.bind("<<ComboboxSelected>>", self.change_language)
         ttk.Label(top, text=t("language")).pack(side="right", padx=(0, 4))
+        ttk.Button(top, text=t("btn_help"), command=self.show_help).pack(side="right", padx=(0, 16))
 
         box = ttk.LabelFrame(self, text=t("box_downloading"), padding=8)
         box.pack(fill="both", expand=True)
@@ -378,6 +418,14 @@ class App(ttk.Frame):
                                  font=ui_font(base.cget("size"), True))
         self.donate.pack(side="right")
 
+    # ---------- help ----------
+    def show_help(self):
+        if self.help_window is not None and self.help_window.winfo_exists():
+            self.help_window.lift()
+            self.help_window.focus_force()
+            return
+        self.help_window = HelpWindow(self.root)
+
     # ---------- StateFlags help ----------
     def _on_tree_motion(self, event):
         over_state_heading = (self.tree.identify_region(event.x, event.y) == "heading"
@@ -417,6 +465,7 @@ class App(ttk.Frame):
         "status_waiting": ("waiting", "sub_waiting"),
         "status_downloading": ("downloading", "sub_downloading"),
         "status_verifying": ("verifying", "sub_verifying"),
+        "status_paused": ("paused", "sub_paused"),
         "status_countdown": ("countdown", "sub_countdown"),
         "status_executing": ("countdown", None),
         "status_action_failed": ("error", None),
@@ -428,7 +477,8 @@ class App(ttk.Frame):
         ring = None
         if mode == "verifying" and self.idle_since:
             ring = (self.idle_since, max(10, self.quiet_s.get()))
-        self.status.set(mode, t(key, **kwargs), t(sub, n=len(self.active)) if sub else "", ring)
+        held = ", ".join(item[1] for item in self.held())
+        self.status.set(mode, t(key, **kwargs), t(sub, n=len(self.active), names=held) if sub else "", ring)
 
     def _render_button(self):
         self.btn.config(text=t("btn_stop") if self.armed else t("btn_start"))
@@ -463,6 +513,7 @@ class App(ttk.Frame):
             messagebox.showwarning(APP_NAME, t("choose_folder_first"))
             return
         self.armed, self.idle_since = True, None
+        self.watched = set()
         self.seen_download = bool(self.tree.get_children())
         self._render_button()
         self.refresh(reschedule=False)
@@ -473,9 +524,12 @@ class App(ttk.Frame):
         self.set_status(key, **kwargs)
 
     def refresh(self, reschedule=True):
-        active = self.active = scan(self.libs) if self.libs else []
+        self.active, self.paused = scan_states(self.libs) if self.libs else ([], [])
+        if self.armed:
+            self.watched.update(item[0] for item in self.active)
+        active = self.active + self.held()  # paused downloads that hold the action are listed too
         self.tree.delete(*self.tree.get_children())
-        for name, done, total, flags in active:
+        for _appid, name, done, total, flags in active:
             pct = f"{done * 100 // total} %" if total else "–"
             prog = f"{fmt_bytes(done)} / {fmt_bytes(total)}" if total else t("preparing")
             state = f"{' · '.join(describe_flags(flags))}  ({flags})"
@@ -490,17 +544,25 @@ class App(ttk.Frame):
             self.root.after(SCAN_INTERVAL_MS, self.refresh)
             self.root.after(TICK_MS, self.tick)
 
+    def held(self):
+        """Paused downloads that were downloading during this watch – they hold the action."""
+        return [item for item in self.paused if item[0] in self.watched] if self.armed else []
+
     def tick(self, reschedule=True):
         """Update the status from the last scan – often, so the quiet-period countdown runs smoothly."""
         if self.armed and self.countdown is None:
-            self.evaluate(bool(self.active))
+            self.evaluate(bool(self.active), bool(self.held()))
         if reschedule:
             self.root.after(TICK_MS, self.tick)
 
-    def evaluate(self, downloading):
+    def evaluate(self, downloading, paused=False):
         if downloading:
             self.seen_download, self.idle_since = True, None
             self.set_status("status_downloading")
+            return
+        if paused:
+            self.idle_since = None
+            self.set_status("status_paused")
             return
         if not self.seen_download:
             self.set_status("status_waiting")

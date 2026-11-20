@@ -63,6 +63,7 @@ STRINGS = {
         "nothing_downloading": "Nothing is downloading.",
         "cli_watching": "Watching downloads (checking every {interval} s). Press Ctrl+C to stop.\n",
         "cli_downloading": "[{stamp}] Downloading: {desc}",
+        "cli_paused": "[{stamp}] Paused in Steam: {names} – not shutting down until it is resumed.",
         "cli_waiting_start": "[{stamp}] Waiting for a download to start…",
         "cli_idle": "[{stamp}] Nothing downloading for {idle} s (need {quiet} s)",
         "cli_dry_run": "[dry-run] Would run:",
@@ -85,7 +86,7 @@ STRINGS = {
         "box_downloading": "Downloading now",
         "col_game": "Game",
         "col_progress": "Downloaded",
-        "col_state": "State (StateFlags)",
+        "col_state": "State",
         "flags_help_title": "Possible states (StateFlags bits)",
         "flags_help_note": "StateFlags is the sum of these values,\ne.g. 6 = 4 (Installed) + 2 (Update required).",
         "box_settings": "Settings",
@@ -95,6 +96,30 @@ STRINGS = {
         "opt_countdown": "Countdown before action (s):",
         "opt_dry_run": "Test mode (don't shut down, just show the countdown)",
         "status_off": "Watching is off.",
+        "status_paused": "Watching… a download is paused.",
+        "sub_paused": "Paused in Steam: {names}. I won't shut down until it's resumed.",
+        "btn_help": "?  Help",
+        "help_title": "Help",
+        "help_close": "Close",
+        "help_text": """# What the app watches
+The app watches Steam's download queue: games that are downloading right now and games waiting in the queue, ready to download. It looks at all your Steam libraries, on every drive.
+
+# When it shuts down
+Only once the whole queue is empty. When the last download finishes, the app waits for the set time (“Wait with no downloads”) in case Steam starts another one. Then a countdown window appears and, when it ends, the computer shuts down, sleeps or restarts – whichever you chose.
+
+# Paused downloads
+If you pause a download in Steam, the app will not shut the computer down. It waits until you resume the download or remove it from the queue. Games that were already paused before you started watching are ignored, so an old, forgotten download doesn't block the shutdown forever.
+
+# Cancelling
+You can cancel at any time: press Cancel (or Esc) in the countdown window, or Stop watching in the main window.
+
+# Test mode
+With Test mode on, nothing shuts down – you only see the countdown and a message about what would happen. Good for trying the app out.
+
+# Tips
+• Keep Steam running – the app only reads Steam's files, it doesn't download anything itself.
+• Make sure the computer doesn't go to sleep on its own before the downloads finish (Windows power settings).
+• The “State” column shows exactly what Steam reports for each game. Hover over “(?)” in its heading for an explanation.""",
         "sub_off": "Press Start watching and let Steam download.",
         "sub_waiting": "Nothing is downloading yet. Start a download in Steam.",
         "sub_downloading": "Active downloads: {n}. I'll act once they're all done.",
@@ -164,6 +189,7 @@ STRINGS = {
         "nothing_downloading": "Nic se nestahuje.",
         "cli_watching": "Hlídám stahování (kontrola každých {interval} s). Ukončíš to Ctrl+C.\n",
         "cli_downloading": "[{stamp}] Stahuje se: {desc}",
+        "cli_paused": "[{stamp}] Pozastaveno ve Steamu: {names} – nevypnu, dokud se nespustí znovu.",
         "cli_waiting_start": "[{stamp}] Čekám, až začne nějaké stahování…",
         "cli_idle": "[{stamp}] Nic se nestahuje už {idle} s (potřeba {quiet} s)",
         "cli_dry_run": "[dry-run] Spustil bych:",
@@ -187,7 +213,7 @@ STRINGS = {
         "box_downloading": "Právě se stahuje",
         "col_game": "Hra",
         "col_progress": "Staženo",
-        "col_state": "Stav (StateFlags)",
+        "col_state": "Stav",
         "flags_help_title": "Možné stavy (bity StateFlags)",
         "flags_help_note": "StateFlags je součet těchto hodnot,\nnapř. 6 = 4 (Nainstalováno) + 2 (Čeká aktualizace).",
         "box_settings": "Nastavení",
@@ -197,6 +223,30 @@ STRINGS = {
         "opt_countdown": "Odpočet před akcí (s):",
         "opt_dry_run": "Zkušební režim (počítač nevypínat, jen ukázat odpočet)",
         "status_off": "Hlídání je vypnuté.",
+        "status_paused": "Hlídám… stahování je pozastavené.",
+        "sub_paused": "Pozastaveno ve Steamu: {names}. Dokud se znovu nespustí, nevypnu.",
+        "btn_help": "?  Nápověda",
+        "help_title": "Nápověda",
+        "help_close": "Zavřít",
+        "help_text": """# Co aplikace hlídá
+Aplikace hlídá frontu stahování ve Steamu: hry, které se právě stahují, i hry, které čekají ve frontě připravené ke stažení. Prochází všechny tvoje knihovny Steamu na všech discích.
+
+# Kdy dojde k vypnutí
+Až když se celá fronta vyprázdní. Po dokončení posledního stahování aplikace ještě počká nastavenou dobu („Počkat bez stahování“), kdyby Steam začal stahovat něco dalšího. Pak se objeví okno s odpočtem a po jeho skončení se počítač vypne, uspí nebo restartuje – podle toho, co sis vybral.
+
+# Pozastavené stahování
+Když ve Steamu stahování pozastavíš, aplikace počítač nevypne. Počká, dokud stahování znovu nespustíš nebo ho nevyřadíš z fronty. Hry, které byly pozastavené už před spuštěním hlídání, se nepočítají, aby staré zapomenuté stahování neblokovalo vypnutí navždy.
+
+# Zrušení
+Kdykoli můžeš zrušit: v okně s odpočtem tlačítkem Zrušit (nebo klávesou Esc), případně v hlavním okně tlačítkem Zastavit hlídání.
+
+# Zkušební režim
+Se zapnutým zkušebním režimem se nic nevypne – uvidíš jen odpočet a zprávu, co by se stalo. Hodí se na vyzkoušení.
+
+# Tipy
+• Nech Steam zapnutý – aplikace jen čte soubory Steamu, sama nic nestahuje.
+• Zkontroluj, že se počítač neuspí sám dřív, než stahování skončí (nastavení napájení ve Windows).
+• Sloupec „Stav“ ukazuje přesně to, co Steam u hry hlásí. Vysvětlivky uvidíš po najetí myší na „(?)“ v záhlaví.""",
         "sub_off": "Klikni na Spustit hlídání a nech Steam stahovat.",
         "sub_waiting": "Zatím se nic nestahuje. Spusť stahování ve Steamu.",
         "sub_downloading": "Aktivních stahování: {n}. Zasáhnu, až všechna skončí.",
