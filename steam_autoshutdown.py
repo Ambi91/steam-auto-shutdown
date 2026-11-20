@@ -183,8 +183,15 @@ def scan(libraries):
             done = int(app.get("bytesdownloaded", "0") or 0)
             paused = bool(flags & UPDATE_PAUSED)
             running = bool(flags & ACTIVE_MASK)
-            unfinished = to_dl > 0 and done < to_dl and not paused
-            if running or unfinished:
+            # Steam sometimes leaves stale byte counts behind on a fully installed
+            # app (StateFlags = Installed only), so leftover bytes only count while
+            # Steam still reports that an update is required.
+            pending = bool(flags & UPDATE_REQUIRED)
+            unfinished = pending and to_dl > 0 and done < to_dl
+            # A paused app keeps "Update started" set, so pause wins over the
+            # active flags – unless Steam reports it is actually downloading.
+            downloading = bool(flags & DOWNLOADING)
+            if downloading or (not paused and (running or unfinished)):
                 active.append((app.get("name", acf.stem), done, to_dl, flags))
     return active
 
