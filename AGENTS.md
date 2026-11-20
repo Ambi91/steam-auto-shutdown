@@ -22,7 +22,7 @@ supported language. English is the default UI language.
 
 ## About the project
 
-- Steam Auto-Shutdown: shuts down, sleeps or restarts the computer once Steam
+- Auto Shutdown for Steam: shuts down, sleeps or restarts the computer once Steam
   finishes downloading. Runs on Windows, macOS and Linux.
 - Python 3.8+ standard library only (tkinter), no dependencies.
 - `steam_autoshutdown.py` – core logic and the terminal version.

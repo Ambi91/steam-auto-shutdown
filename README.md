@@ -1,4 +1,4 @@
-# Steam Auto-Shutdown
+# Auto Shutdown for Steam
 
 A small app that shuts down, sleeps or restarts your computer once Steam finishes downloading.
 Works on Windows, macOS and Linux.
@@ -25,7 +25,7 @@ https://github.com/Ambi91/steam-auto-shutdown/releases
 | System  | File                                | How to run |
 |---------|-------------------------------------|------------|
 | Windows | `SteamAutoShutdown-windows-*.zip`   | Unzip and run `SteamAutoShutdown.exe`. SmartScreen may show a warning: *More info → Run anyway*. |
-| macOS   | `SteamAutoShutdown-macos-*.zip`     | Unzip, move `Steam Auto-Shutdown.app` to Applications and open it the first time via *right-click → Open* (the app is not signed). The first time it shuts down, allow it to control "System Events". |
+| macOS   | `SteamAutoShutdown-macos-*.zip`     | Unzip, move `Auto Shutdown for Steam.app` to Applications and open it the first time via *right-click → Open* (the app is not signed). The first time it shuts down, allow it to control "System Events". |
 | Linux   | `SteamAutoShutdown-linux-*.tar.gz`  | Extract and run `./SteamAutoShutdown`. It shuts down via `systemctl`, which works without sudo on common desktop distributions. |
 
 ## How it works
@@ -59,7 +59,7 @@ macOS (the same on Linux, just without the last line):
 uv venv --python 3.12 .venv
 uv pip install --python .venv pyinstaller==6.22.3
 .venv/bin/python -m PyInstaller --noconfirm --clean SteamAutoShutdown.spec
-ditto -c -k --keepParent "dist/Steam Auto-Shutdown.app" dist/SteamAutoShutdown-macos-v1.0.0.zip
+ditto -c -k --keepParent "dist/Auto Shutdown for Steam.app" dist/SteamAutoShutdown-macos-v1.0.0.zip
 ```
 
 Windows (PowerShell):
@@ -74,6 +74,15 @@ Compress-Archive dist\SteamAutoShutdown.exe dist\SteamAutoShutdown-windows-v1.0.
 You can also run it directly without building: `python3 steam_autoshutdown_gui.py`
 (GUI) or `python3 steam_autoshutdown.py` (terminal version).
 
+### Microsoft Store
+
+The Windows build is also packaged as MSIX for the Microsoft Store (artifact
+`MicrosoftStore-msix`). How to publish it is described in [STORE.md](STORE.md).
+
+## Privacy
+
+The app collects and sends no data. See [PRIVACY.md](PRIVACY.md).
+
 ## Support
 
 The app is free. If it saved you time and you'd like to support further development,
@@ -84,3 +93,5 @@ you can chip in on **Ko-fi**: https://ko-fi.com/ambi91. Donations are entirely v
 Freeware for personal use. Redistribution, modifying the source code and commercial
 use require prior written permission from the author. See the [LICENSE](LICENSE) file
 for details.
+
+Not affiliated with Valve Corporation. Steam is a trademark of Valve Corporation.

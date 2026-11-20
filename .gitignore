@@ -49,7 +49,7 @@ Thumbs.db
 *.wmv
 
 
-# Steam Auto-Shutdown
+# Auto Shutdown for Steam
 __pycache__/
 *.pyc
 .venv/

@@ -2,7 +2,8 @@
 # or a .app bundle (macOS).   Usage:  pyinstaller SteamAutoShutdown.spec
 import sys
 
-a = Analysis(["steam_autoshutdown_gui.py"], excludes=["unittest", "pydoc", "doctest"])
+a = Analysis(["steam_autoshutdown_gui.py"], excludes=["unittest", "pydoc", "doctest"],
+             datas=[("assets/icon.png", "assets")])  # window icon
 pyz = PYZ(a.pure)
 
 if sys.platform == "darwin":
@@ -11,7 +12,8 @@ if sys.platform == "darwin":
     coll = COLLECT(exe, a.binaries, a.datas, name="SteamAutoShutdown")
     app = BUNDLE(
         coll,
-        name="Steam Auto-Shutdown.app",
+        name="Auto Shutdown for Steam.app",
+        icon="assets/icon.icns",
         bundle_identifier="cz.local.steamautoshutdown",
         info_plist={
             "CFBundleShortVersionString": "1.0.0",
@@ -24,4 +26,4 @@ if sys.platform == "darwin":
     )
 else:
     exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="SteamAutoShutdown",
-              console=False, upx=False)
+              console=False, upx=False, icon="assets/icon.ico")

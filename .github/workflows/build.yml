@@ -1,4 +1,4 @@
-# Builds Steam Auto-Shutdown for Windows, macOS and Linux.
+# Builds Auto Shutdown for Steam for Windows, macOS and Linux.
 #
 # How to run:
 #   * manually: Actions → Build → Run workflow
@@ -56,15 +56,57 @@ jobs:
         run: Compress-Archive -Path dist/SteamAutoShutdown.exe -DestinationPath "SteamAutoShutdown-windows-$env:VERSION.zip"
       - name: Package (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent "dist/Steam Auto-Shutdown.app" "SteamAutoShutdown-macos-$VERSION.zip"
+        run: ditto -c -k --keepParent "dist/Auto Shutdown for Steam.app" "SteamAutoShutdown-macos-$VERSION.zip"
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: tar -czf "SteamAutoShutdown-linux-$VERSION.tar.gz" -C dist SteamAutoShutdown
+
+      # Microsoft Store package. It is not signed here: the Store signs it on upload,
+      # so it can't be installed by double-click and is kept out of the GitHub Release.
+      - name: Package MSIX for the Microsoft Store (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME || 'SteamAutoShutdown' }}
+          PUBLISHER: ${{ vars.MSIX_PUBLISHER || 'CN=SteamAutoShutdown' }}
+          PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'Jan Ambrož' }}
+          DISPLAY_NAME: ${{ vars.MSIX_DISPLAY_NAME || 'Auto Shutdown for Steam' }}
+        run: |
+          $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*" -Directory |
+                 Sort-Object { [version]$_.Name } | Select-Object -Last 1
+          $bin = Join-Path $sdk.FullName "x64"
+          # The Store needs a numeric version a.b.c.0 – taken from a tag like v1.2.3.
+          $v = $env:VERSION -replace '^v', ''
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { $v = "0.0.$env:GITHUB_RUN_NUMBER" }
+          $env:VERSION_MSIX = "$v.0"
+
+          New-Item -ItemType Directory msix | Out-Null
+          Copy-Item dist/SteamAutoShutdown.exe msix/
+          Copy-Item -Recurse packaging/msix/Assets msix/Assets
+          $manifest = Get-Content packaging/msix/AppxManifest.xml -Raw
+          foreach ($k in 'IDENTITY_NAME', 'PUBLISHER', 'PUBLISHER_DISPLAY_NAME', 'DISPLAY_NAME') {
+            $val = [Security.SecurityElement]::Escape((Get-Item "env:$k").Value)
+            $manifest = $manifest.Replace('${' + $k + '}', $val)
+          }
+          $manifest = $manifest.Replace('${VERSION}', $env:VERSION_MSIX)
+          Set-Content msix/AppxManifest.xml $manifest -Encoding utf8
+
+          & "$bin\makepri.exe" createconfig /cf priconfig.xml /dq en-US /pv 10.0.0 /o
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & "$bin\makepri.exe" new /pr msix /cf priconfig.xml /mn msix/AppxManifest.xml /of msix/resources.pri /o
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & "$bin\makeappx.exe" pack /d msix /p "MicrosoftStore-$env:VERSION_MSIX.msix" /o
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - uses: actions/upload-artifact@v4
         with:
           name: SteamAutoShutdown-${{ matrix.platform }}
           path: SteamAutoShutdown-${{ matrix.platform }}-*
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: MicrosoftStore-msix
+          path: MicrosoftStore-*.msix
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -73,6 +115,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: SteamAutoShutdown-*   # not the Store package
           path: out
           merge-multiple: true
       - uses: softprops/action-gh-release@v2

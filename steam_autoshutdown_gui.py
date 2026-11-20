@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Steam Auto-Shutdown – graphical version.
+Auto Shutdown for Steam – graphical version.
 
 Shows what Steam is downloading right now and, once watching is on, shuts down /
 sleeps / restarts the computer when all downloads are finished.
@@ -15,12 +15,13 @@ import sys
 import time
 import tkinter as tk
 import webbrowser
+from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from i18n import LANGUAGES, get_language, load_saved_language, save_language, set_language, t
 from steam_autoshutdown import FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command, scan
 
-APP_NAME = "Steam Auto-Shutdown"
+APP_NAME = "Auto Shutdown for Steam"
 SCAN_INTERVAL_MS = 5000   # how often Steam manifests are read
 TICK_MS = 200             # how often the status (quiet-period countdown) is updated
 DONATE_URL = "https://ko-fi.com/ambi91"
@@ -536,10 +537,21 @@ class App(ttk.Frame):
             self.set_status("status_action_failed")
 
 
+def resource_path(name):
+    """Path to a bundled file – next to this script, or inside the PyInstaller bundle."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / name
+
+
 def main():
     set_language(load_saved_language())
     root = tk.Tk()
     root.title(APP_NAME)
+    try:
+        root._icon = tk.PhotoImage(file=str(resource_path("assets/icon.png")))
+        root.iconphoto(True, root._icon)
+    except tk.TclError:
+        pass  # no icon is not a reason to fail
     root.minsize(780, 540)
     try:
         ttk.Style().theme_use("vista" if sys.platform == "win32" else
