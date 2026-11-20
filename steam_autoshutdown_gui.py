@@ -17,7 +17,7 @@ import webbrowser
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from i18n import LANGUAGES, get_language, load_saved_language, save_language, set_language, t
-from steam_autoshutdown import describe_flags, find_libraries, fmt_bytes, power_command, scan
+from steam_autoshutdown import FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command, scan
 
 APP_NAME = "Steam Auto-Shutdown"
 SCAN_INTERVAL_MS = 5000
@@ -86,6 +86,26 @@ class CountdownDialog(tk.Toplevel):
         self.on_done()
 
 
+class FlagsTooltip(tk.Toplevel):
+    """Borderless popup listing every StateFlags bit and its meaning."""
+
+    def __init__(self, parent, x, y):
+        super().__init__(parent)
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
+        frm = tk.Frame(self, bg="#ffffe1", bd=1, relief="solid", padx=8, pady=6)
+        frm.pack()
+        tk.Label(frm, text=t("flags_help_title"), bg="#ffffe1", fg="black",
+                 font=("TkDefaultFont", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
+        for i, (value, key) in enumerate(sorted(FLAG_NAMES), start=1):
+            tk.Label(frm, text=str(value), bg="#ffffe1", fg="black",
+                     font="TkFixedFont").grid(row=i, column=0, sticky="e", padx=(0, 10))
+            tk.Label(frm, text=t(key), bg="#ffffe1", fg="black").grid(row=i, column=1, sticky="w")
+        tk.Label(frm, text=t("flags_help_note"), bg="#ffffe1", fg="gray25", justify="left").grid(
+            row=len(FLAG_NAMES) + 1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.geometry(f"+{x}+{y}")
+
+
 class App(ttk.Frame):
     def __init__(self, root):
         super().__init__(root, padding=14)
@@ -134,7 +154,11 @@ class App(ttk.Frame):
         self.tree.heading("game", text=t("col_game"))
         self.tree.heading("progress", text=t("col_progress"))
         self.tree.heading("pct", text="%")
-        self.tree.heading("state", text=t("col_state"))
+        # The "(?)" in the heading shows a list of all possible states on hover.
+        self.tree.heading("state", text=f"{t('col_state')}  (?)")
+        self._flags_tip = None
+        self.tree.bind("<Motion>", self._on_tree_motion)
+        self.tree.bind("<Leave>", lambda e: self._hide_flags_tip())
         self.tree.column("game", width=200, minwidth=120)
         self.tree.column("progress", width=150, minwidth=110, anchor="center", stretch=False)
         self.tree.column("pct", width=50, minwidth=40, anchor="center", stretch=False)
@@ -197,6 +221,20 @@ class App(ttk.Frame):
         self.donate.bind("<Button-1>", lambda e: webbrowser.open(DONATE_URL))
         self.donate.bind("<Enter>", lambda e: self.donate.config(bg=KOFI_HOVER))
         self.donate.bind("<Leave>", lambda e: self.donate.config(bg=KOFI_COLOR))
+
+    # ---------- StateFlags help ----------
+    def _on_tree_motion(self, event):
+        over_state_heading = (self.tree.identify_region(event.x, event.y) == "heading"
+                              and self.tree.identify_column(event.x) == "#4")
+        if over_state_heading and self._flags_tip is None:
+            self._flags_tip = FlagsTooltip(self.root, event.x_root + 12, event.y_root + 16)
+        elif not over_state_heading:
+            self._hide_flags_tip()
+
+    def _hide_flags_tip(self):
+        if self._flags_tip is not None:
+            self._flags_tip.destroy()
+            self._flags_tip = None
 
     # ---------- language ----------
     def change_language(self, _event=None):
