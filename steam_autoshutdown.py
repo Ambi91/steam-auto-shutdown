@@ -221,7 +221,19 @@ def countdown(seconds, action):
 
 
 # --- Hlavní smyčka ----------------------------------------------------------
+def _utf8_output():
+    """Na Windows je přesměrovaný výstup v kódování cp1252 a znaky jako „↓“ nebo „™“
+    v něm shodí print(). Přepne stdout/stderr na UTF-8; co nejde zapsat, nahradí."""
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def main():
+    _utf8_output()
     ap = argparse.ArgumentParser(description="Vypne PC po dokončení stahování ve Steamu.")
     ap.add_argument("--steam-path", help="cesta ke složce Steamu (jinak se najde sama)")
     ap.add_argument("--interval", type=int, default=15, help="jak často kontrolovat, v sekundách (15)")
