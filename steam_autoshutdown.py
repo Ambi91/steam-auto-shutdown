@@ -41,6 +41,44 @@ COMMITTING = 4194304
 ACTIVE_MASK = (UPDATE_RUNNING | UPDATE_STARTED | VALIDATING | ADDING_FILES
                | PREALLOCATING | DOWNLOADING | STAGING | COMMITTING)
 
+# Slovní popis všech známých příznaků (EAppState). Pořadí = pořadí ve výpisu:
+# nejdřív to, co se právě děje, pak pozastavení a nakonec trvalé stavy.
+FLAG_NAMES = [
+    (DOWNLOADING, "Stahuje"),
+    (PREALLOCATING, "Alokuje místo"),
+    (ADDING_FILES, "Přidává soubory"),
+    (STAGING, "Zpracovává data"),
+    (COMMITTING, "Zapisuje"),
+    (VALIDATING, "Ověřuje"),
+    (UPDATE_RUNNING, "Aktualizace běží"),
+    (UPDATE_STARTED, "Aktualizace zahájena"),
+    (8388608, "Zastavuje aktualizaci"),
+    (65536, "Mění konfiguraci"),
+    (UPDATE_PAUSED, "Pozastaveno"),
+    (UPDATE_REQUIRED, "Čeká aktualizace"),
+    (2048, "Odinstalovává"),
+    (4096, "Zálohuje"),
+    (64, "Hra běží"),
+    (16, "Uzamčeno"),
+    (8, "Zašifrováno"),
+    (32, "Chybí soubory"),
+    (128, "Poškozené soubory"),
+    (4, "Nainstalováno"),
+    (1, "Neinstalováno"),
+]
+
+
+def describe_flags(flags):
+    """Rozloží StateFlags na seznam slovních stavů (neznámé bity jako 'bit N')."""
+    names, known = [], 0
+    for value, label in FLAG_NAMES:
+        known |= value
+        if flags & value:
+            names.append(label)
+    rest = flags & ~known
+    names += [f"bit {i}" for i in range(rest.bit_length()) if rest >> i & 1]
+    return names or ["Neplatný stav"]
+
 
 # --- Minimalistický parser formátu VDF/ACF ----------------------------------
 _TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"|([{}])')
@@ -127,7 +165,7 @@ def find_libraries(steam_root=None):
 
 # --- Stav stahování ---------------------------------------------------------
 def scan(libraries):
-    """Vrátí seznam aktivně stahovaných her: [(název, staženo, celkem)]."""
+    """Vrátí seznam aktivně stahovaných her: [(název, staženo, celkem, StateFlags)]."""
     active = []
     for lib in libraries:
         for acf in lib.glob("appmanifest_*.acf"):
@@ -142,7 +180,7 @@ def scan(libraries):
             running = bool(flags & ACTIVE_MASK)
             unfinished = to_dl > 0 and done < to_dl and not paused
             if running or unfinished:
-                active.append((app.get("name", acf.stem), done, to_dl))
+                active.append((app.get("name", acf.stem), done, to_dl, flags))
     return active
 
 
@@ -206,8 +244,9 @@ def main():
         active = scan(libs)
         if not active:
             print("Nic se nestahuje.")
-        for name, done, total in active:
-            print(f"  ↓ {name}: {fmt_bytes(done)} / {fmt_bytes(total)}")
+        for name, done, total, flags in active:
+            print(f"  ↓ {name}: {fmt_bytes(done)} / {fmt_bytes(total)}  "
+                  f"[{flags}: {', '.join(describe_flags(flags))}]")
         return
 
     seen_download = args.no_wait_start
@@ -221,7 +260,7 @@ def main():
             if active:
                 seen_download, idle_since = True, None
                 desc = ", ".join(f"{n} ({fmt_bytes(d)}/{fmt_bytes(t)})" if t else n
-                                 for n, d, t in active)
+                                 for n, d, t, _ in active)
                 print(f"[{stamp}] Stahuje se: {desc}")
             elif not seen_download:
                 print(f"[{stamp}] Čekám, až začne nějaké stahování…")

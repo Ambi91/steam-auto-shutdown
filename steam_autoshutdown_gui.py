@@ -16,7 +16,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
-from steam_autoshutdown import find_libraries, fmt_bytes, power_command, scan
+from steam_autoshutdown import describe_flags, find_libraries, fmt_bytes, power_command, scan
 
 APP_NAME = "Steam Auto-Shutdown"
 SCAN_INTERVAL_MS = 5000
@@ -118,19 +118,22 @@ class App(ttk.Frame):
         top.pack(fill="x")
         ttk.Label(top, text=APP_NAME, font=("TkDefaultFont", 16, "bold")).pack(side="left")
         ttk.Button(top, text="Složka Steamu…", command=self.choose_path).pack(side="right")
-        self.lib_label = ttk.Label(self, foreground="gray")
+        # width=1: dlouhá cesta ke Steamu se ořízne a nebude roztahovat okno
+        self.lib_label = ttk.Label(self, foreground="gray", width=1)
         self.lib_label.pack(fill="x", pady=(2, 10))
 
         box = ttk.LabelFrame(self, text="Právě se stahuje", padding=8)
         box.pack(fill="both", expand=True)
-        cols = ("game", "progress", "pct")
+        cols = ("game", "progress", "pct", "state")
         self.tree = ttk.Treeview(box, columns=cols, show="headings", height=6)
         self.tree.heading("game", text="Hra")
         self.tree.heading("progress", text="Staženo")
         self.tree.heading("pct", text="%")
-        self.tree.column("game", width=260)
-        self.tree.column("progress", width=170, anchor="center")
-        self.tree.column("pct", width=60, anchor="center")
+        self.tree.heading("state", text="Stav (StateFlags)")
+        self.tree.column("game", width=200, minwidth=120)
+        self.tree.column("progress", width=150, minwidth=110, anchor="center", stretch=False)
+        self.tree.column("pct", width=50, minwidth=40, anchor="center", stretch=False)
+        self.tree.column("state", width=340, minwidth=160)
         self.tree.pack(fill="both", expand=True)
         self.empty_label = ttk.Label(box, text="Nic se nestahuje.", foreground="gray")
 
@@ -209,10 +212,11 @@ class App(ttk.Frame):
     def refresh(self, reschedule=True):
         active = scan(self.libs) if self.libs else []
         self.tree.delete(*self.tree.get_children())
-        for name, done, total in active:
+        for name, done, total, flags in active:
             pct = f"{done * 100 // total} %" if total else "–"
             prog = f"{fmt_bytes(done)} / {fmt_bytes(total)}" if total else "připravuje se"
-            self.tree.insert("", "end", values=(name, prog, pct))
+            state = f"{' · '.join(describe_flags(flags))}  ({flags})"
+            self.tree.insert("", "end", values=(name, prog, pct, state))
         if active:
             self.empty_label.place_forget()
         else:
@@ -269,7 +273,7 @@ class App(ttk.Frame):
 def main():
     root = tk.Tk()
     root.title(APP_NAME)
-    root.minsize(520, 520)
+    root.minsize(780, 540)
     try:
         ttk.Style().theme_use("vista" if sys.platform == "win32" else
                               "aqua" if sys.platform == "darwin" else "clam")
