@@ -1,55 +1,58 @@
 # Steam Auto-Shutdown
 
-Malá aplikace, která po dokončení stahování ve Steamu vypne, uspí nebo restartuje počítač.
-Funguje na Windows, macOS i Linuxu.
+A small app that shuts down, sleeps or restarts your computer once Steam finishes downloading.
+Works on Windows, macOS and Linux.
 
-## Používání
+## Usage
 
-1. Spusť aplikaci. Sama najde Steam a ukáže, co se právě stahuje.
-   Pokud máš Steam jinde, vyber jeho složku tlačítkem **Složka Steamu…**.
-2. Zvol, co se má stát: **Vypnout**, **Uspat** nebo **Restartovat**.
-3. Klikni na **Spustit hlídání** a nech Steam stahovat.
-4. Když se nic nestahuje po nastavenou dobu (výchozí 2 min), objeví se okno s odpočtem
-   (výchozí 60 s). Kliknutím na **Zrušit** akci stopneš.
+1. Start the app. It finds Steam on its own and shows what is downloading right now.
+   If Steam is installed somewhere else, pick its folder with the **Steam folder…** button.
+2. Choose what should happen: **Shut down**, **Sleep** or **Restart**.
+3. Click **Start watching** and let Steam download.
+4. Once nothing has downloaded for the set time (2 min by default), a countdown window
+   appears (60 s by default). Click **Cancel** to stop the action.
 
-Tip: poprvé zkus **Zkušební režim**, ve kterém se nic nevypne, jen se ukáže odpočet.
+Tip: the first time, try **Test mode**. Nothing shuts down, it only shows the countdown.
 
-## Instalace
+Language: the app starts in English. Switch to Czech in the **Language** drop-down
+in the top right; your choice is remembered. The terminal version takes `--lang cs`.
 
-Hotové soubory najdeš na GitHubu v sekci **Releases**:
+## Installation
+
+Ready-to-run files are on GitHub under **Releases**:
 https://github.com/Ambi91/steam-auto-shutdown/releases
 
-| Systém  | Soubor                              | Spuštění |
-|---------|-------------------------------------|----------|
-| Windows | `SteamAutoShutdown-windows-*.zip`   | Rozbal a spusť `SteamAutoShutdown.exe`. SmartScreen může zobrazit varování: *Další informace → Přesto spustit*. |
-| macOS   | `SteamAutoShutdown-macos-*.zip`     | Rozbal, přesuň `Steam Auto-Shutdown.app` do Aplikací a poprvé ji otevři přes *pravé tlačítko → Otevřít* (aplikace není podepsaná). Při prvním vypínání povol ovládání „System Events“. |
-| Linux   | `SteamAutoShutdown-linux-*.tar.gz`  | Rozbal a spusť `./SteamAutoShutdown`. Vypíná přes `systemctl`, což na běžných desktopových distribucích funguje bez sudo. |
+| System  | File                                | How to run |
+|---------|-------------------------------------|------------|
+| Windows | `SteamAutoShutdown-windows-*.zip`   | Unzip and run `SteamAutoShutdown.exe`. SmartScreen may show a warning: *More info → Run anyway*. |
+| macOS   | `SteamAutoShutdown-macos-*.zip`     | Unzip, move `Steam Auto-Shutdown.app` to Applications and open it the first time via *right-click → Open* (the app is not signed). The first time it shuts down, allow it to control "System Events". |
+| Linux   | `SteamAutoShutdown-linux-*.tar.gz`  | Extract and run `./SteamAutoShutdown`. It shuts down via `systemctl`, which works without sudo on common desktop distributions. |
 
-## Jak to funguje
+## How it works
 
-Steam si u každé hry vede soubor `steamapps/appmanifest_<id>.acf`, ve kterém je stav
-(`StateFlags`) a kolik bajtů zbývá stáhnout. Aplikace tyto soubory každých 5 s čte
-ve všech knihovnách Steamu (podle `libraryfolders.vdf`). Hru, kterou máš ve Steamu
-pozastavenou, ignoruje.
+For every game, Steam keeps a file `steamapps/appmanifest_<id>.acf` with its state
+(`StateFlags`) and how many bytes are left to download. The app reads these files every
+5 s in all Steam libraries (listed in `libraryfolders.vdf`). Games you have paused in
+Steam are ignored.
 
-## Sestavení
+## Building
 
-PyInstaller sestavuje vždy jen pro systém, na kterém běží. Proto:
+PyInstaller only builds for the system it runs on. So:
 
-### Všechny systémy – GitHub Actions (automaticky, doporučeno)
+### All systems – GitHub Actions (automatic, recommended)
 
-Konfigurace je v `.github/workflows/build.yml`. GitHub sestaví verze pro
-Windows, macOS i Linux na svých serverech. Spuštění:
+The configuration is in `.github/workflows/build.yml`. GitHub builds the Windows, macOS
+and Linux versions on its own servers. To run it:
 
-- ručně: *Actions → Build → Run workflow*. Soubory pak najdeš u běhu v sekci *Artifacts*.
-- vydáním verze: `git tag v1.0.0 && git push origin v1.0.0`. Vytvoří se Release
-  se všemi třemi soubory.
+- manually: *Actions → Build → Run workflow*. The files are then under *Artifacts* on that run.
+- by releasing a version: `git tag v1.0.0 && git push origin v1.0.0`. This creates a Release
+  with all three files.
 
-### Ručně na daném počítači
+### Manually on a given computer
 
-Potřebuješ jen [uv](https://docs.astral.sh/uv/). Python s tkinterem si stáhne sám.
+All you need is [uv](https://docs.astral.sh/uv/). It downloads Python with tkinter by itself.
 
-macOS (na Linuxu stejně, jen bez posledního řádku):
+macOS (the same on Linux, just without the last line):
 
 ```bash
 uv venv --python 3.12 .venv
@@ -67,16 +70,16 @@ uv pip install --python .venv pyinstaller==6.22.3
 Compress-Archive dist\SteamAutoShutdown.exe dist\SteamAutoShutdown-windows-v1.0.0.zip
 ```
 
-Bez sestavování to jde spustit i přímo: `python3 steam_autoshutdown_gui.py`
-(GUI) nebo `python3 steam_autoshutdown.py` (verze pro terminál).
+You can also run it directly without building: `python3 steam_autoshutdown_gui.py`
+(GUI) or `python3 steam_autoshutdown.py` (terminal version).
 
-## Podpora
+## Support
 
-Aplikace je zdarma. Pokud ti ušetřila čas a chceš podpořit další vývoj, můžeš
-přispět na **Ko-fi**: https://ko-fi.com/ambi91. Příspěvek je zcela dobrovolný.
+The app is free. If it saved you time and you'd like to support further development,
+you can chip in on **Ko-fi**: https://ko-fi.com/ambi91. Donations are entirely voluntary.
 
-## Licence
+## License
 
-Freeware pro osobní použití. Další šíření, úpravy zdrojového kódu a komerční
-použití vyžadují předchozí písemný souhlas autora. Podrobnosti jsou v souboru
-[LICENSE](LICENSE).
+Freeware for personal use. Redistribution, modifying the source code and commercial
+use require prior written permission from the author. See the [LICENSE](LICENSE) file
+for details.

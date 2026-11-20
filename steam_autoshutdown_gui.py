@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Steam Auto-Shutdown – grafická verze.
+Steam Auto-Shutdown – graphical version.
 
-Ukazuje, co Steam právě stahuje, a po zapnutí hlídání vypne / uspí /
-restartuje počítač, jakmile jsou všechna stahování hotová.
-Logiku (hledání knihoven, čtení manifestů, příkazy pro vypnutí) sdílí
-s konzolovou verzí v steam_autoshutdown.py.
+Shows what Steam is downloading right now and, once watching is on, shuts down /
+sleeps / restarts the computer when all downloads are finished.
+The logic (finding libraries, reading manifests, power commands) is shared
+with the terminal version in steam_autoshutdown.py.
 """
 
 import os
@@ -16,36 +16,33 @@ import tkinter as tk
 import webbrowser
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
+from i18n import LANGUAGES, get_language, load_saved_language, save_language, set_language, t
 from steam_autoshutdown import describe_flags, find_libraries, fmt_bytes, power_command, scan
 
 APP_NAME = "Steam Auto-Shutdown"
 SCAN_INTERVAL_MS = 5000
 DONATE_URL = "https://ko-fi.com/ambi91"
-KOFI_COLOR = "#29ABE0"   # modrá Ko-fi
+KOFI_COLOR = "#29ABE0"   # Ko-fi blue
 KOFI_HOVER = "#1E8BBA"
 
-ACTIONS = {  # text v nabídce -> (klíč akce, sloveso pro odpočet)
-    "Vypnout počítač": ("shutdown", "vypne"),
-    "Uspat počítač": ("sleep", "uspí"),
-    "Restartovat počítač": ("restart", "restartuje"),
-}
+ACTIONS = ("shutdown", "sleep", "restart")  # texts: action_<key>, countdown_<key> in i18n.py
 
 
 class CountdownDialog(tk.Toplevel):
-    """Okno s odpočtem, které jde zrušit. Zůstává nad ostatními okny."""
+    """Cancellable countdown window. Stays on top of other windows."""
 
-    def __init__(self, parent, seconds, verb, on_done, on_cancel):
+    def __init__(self, parent, seconds, action, on_done, on_cancel):
         super().__init__(parent)
         self.title(APP_NAME)
         self.resizable(False, False)
         self.attributes("-topmost", True)
         self.protocol("WM_DELETE_WINDOW", self.cancel)
-        self.left, self.verb = seconds, verb
+        self.left, self.action = seconds, action
         self.on_done, self.on_cancel = on_done, on_cancel
 
         frm = ttk.Frame(self, padding=24)
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, text="Stahování ve Steamu je dokončeno.",
+        ttk.Label(frm, text=t("dlg_finished"),
                   font=("TkDefaultFont", 13, "bold")).pack()
         self.msg = ttk.Label(frm, font=("TkDefaultFont", 12))
         self.msg.pack(pady=(8, 4))
@@ -53,8 +50,8 @@ class CountdownDialog(tk.Toplevel):
         self.num.pack(pady=(0, 12))
         btns = ttk.Frame(frm)
         btns.pack()
-        ttk.Button(btns, text="Zrušit", command=self.cancel).pack(side="left", padx=6)
-        ttk.Button(btns, text="Provést hned", command=self.finish).pack(side="left", padx=6)
+        ttk.Button(btns, text=t("dlg_cancel"), command=self.cancel).pack(side="left", padx=6)
+        ttk.Button(btns, text=t("dlg_now"), command=self.finish).pack(side="left", padx=6)
 
         self.bind("<Escape>", lambda e: self.cancel())
         self.update_idletasks()
@@ -70,7 +67,7 @@ class CountdownDialog(tk.Toplevel):
         if self.left <= 0:
             self.finish()
             return
-        self.msg.config(text=f"Počítač se {self.verb} za:")
+        self.msg.config(text=t(f"countdown_{self.action}"))
         self.num.config(text=f"{self.left} s")
         self.left -= 1
         self._job = self.after(1000, self.tick)
@@ -95,15 +92,19 @@ class App(ttk.Frame):
         self.root = root
         self.pack(fill="both", expand=True)
 
-        # None = najít automaticky; proměnná prostředí slouží pro testy a nestandardní instalace
+        # None = find automatically; the environment variable is for tests and unusual installs
         self.steam_path = os.environ.get("STEAM_AUTOSHUTDOWN_PATH") or None
         self.libs = []
         self.armed = False
         self.seen_download = False
         self.idle_since = None
         self.countdown = None
+        # The status line is kept as (key, params) so it can be re-translated on language change.
+        self._status = ("status_off", {})
 
-        self.action = tk.StringVar(value=next(iter(ACTIONS)))
+        self.action_key = ACTIONS[0]
+        self.action_label = tk.StringVar()
+        self.language = tk.StringVar()
         self.quiet_min = tk.IntVar(value=2)
         self.countdown_s = tk.IntVar(value=60)
         self.dry_run = tk.BooleanVar(value=False)
@@ -112,60 +113,74 @@ class App(ttk.Frame):
         self.load_libraries()
         self.refresh()
 
-    # ---------- rozložení ----------
+    # ---------- layout ----------
     def _build(self):
+        self.action_label.set(t(f"action_{self.action_key}"))
+        self.language.set(LANGUAGES[get_language()])
+
         top = ttk.Frame(self)
         top.pack(fill="x")
         ttk.Label(top, text=APP_NAME, font=("TkDefaultFont", 16, "bold")).pack(side="left")
-        ttk.Button(top, text="Složka Steamu…", command=self.choose_path).pack(side="right")
-        # width=1: dlouhá cesta ke Steamu se ořízne a nebude roztahovat okno
+        ttk.Button(top, text=t("btn_steam_folder"), command=self.choose_path).pack(side="right")
+        lang_box = ttk.Combobox(top, textvariable=self.language, values=list(LANGUAGES.values()),
+                                state="readonly", width=10)
+        lang_box.pack(side="right", padx=(0, 12))
+        lang_box.bind("<<ComboboxSelected>>", self.change_language)
+        ttk.Label(top, text=t("language")).pack(side="right", padx=(0, 4))
+        # width=1: a long Steam path gets clipped instead of widening the window
         self.lib_label = ttk.Label(self, foreground="gray", width=1)
         self.lib_label.pack(fill="x", pady=(2, 10))
 
-        box = ttk.LabelFrame(self, text="Právě se stahuje", padding=8)
+        box = ttk.LabelFrame(self, text=t("box_downloading"), padding=8)
         box.pack(fill="both", expand=True)
         cols = ("game", "progress", "pct", "state")
         self.tree = ttk.Treeview(box, columns=cols, show="headings", height=6)
-        self.tree.heading("game", text="Hra")
-        self.tree.heading("progress", text="Staženo")
+        self.tree.heading("game", text=t("col_game"))
+        self.tree.heading("progress", text=t("col_progress"))
         self.tree.heading("pct", text="%")
-        self.tree.heading("state", text="Stav (StateFlags)")
+        self.tree.heading("state", text=t("col_state"))
         self.tree.column("game", width=200, minwidth=120)
         self.tree.column("progress", width=150, minwidth=110, anchor="center", stretch=False)
         self.tree.column("pct", width=50, minwidth=40, anchor="center", stretch=False)
         self.tree.column("state", width=340, minwidth=160)
         self.tree.pack(fill="both", expand=True)
-        self.empty_label = ttk.Label(box, text="Nic se nestahuje.", foreground="gray")
+        self.empty_label = ttk.Label(box, text=t("nothing_downloading"), foreground="gray")
 
-        opts = ttk.LabelFrame(self, text="Nastavení", padding=8)
+        opts = ttk.LabelFrame(self, text=t("box_settings"), padding=8)
         opts.pack(fill="x", pady=10)
         opts.columnconfigure(1, weight=1)
-        ttk.Label(opts, text="Po dokončení:").grid(row=0, column=0, sticky="w", pady=3)
-        ttk.Combobox(opts, textvariable=self.action, values=list(ACTIONS),
-                     state="readonly", width=22).grid(row=0, column=1, sticky="w")
-        ttk.Label(opts, text="Počkat bez stahování (min):").grid(row=1, column=0, sticky="w", pady=3)
+        ttk.Label(opts, text=t("opt_action")).grid(row=0, column=0, sticky="w", pady=3)
+        action_box = ttk.Combobox(opts, textvariable=self.action_label,
+                                  values=[t(f"action_{k}") for k in ACTIONS],
+                                  state="readonly", width=26)
+        action_box.grid(row=0, column=1, sticky="w")
+        action_box.bind("<<ComboboxSelected>>",
+                        lambda e: setattr(self, "action_key", ACTIONS[action_box.current()]))
+        ttk.Label(opts, text=t("opt_quiet")).grid(row=1, column=0, sticky="w", pady=3)
         ttk.Spinbox(opts, from_=1, to=60, textvariable=self.quiet_min, width=6).grid(row=1, column=1, sticky="w")
-        ttk.Label(opts, text="Odpočet před akcí (s):").grid(row=2, column=0, sticky="w", pady=3)
+        ttk.Label(opts, text=t("opt_countdown")).grid(row=2, column=0, sticky="w", pady=3)
         ttk.Spinbox(opts, from_=10, to=600, increment=10, textvariable=self.countdown_s,
                     width=6).grid(row=2, column=1, sticky="w")
-        ttk.Checkbutton(opts, text="Zkušební režim (počítač nevypínat, jen ukázat odpočet)",
+        ttk.Checkbutton(opts, text=t("opt_dry_run"),
                         variable=self.dry_run).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
-        self.status = ttk.Label(self, text="Hlídání je vypnuté.", font=("TkDefaultFont", 12))
+        self.status = ttk.Label(self, font=("TkDefaultFont", 12))
         self.status.pack(fill="x", pady=(0, 8))
-        self.btn = ttk.Button(self, text="▶  Spustit hlídání", command=self.toggle)
+        self.btn = ttk.Button(self, command=self.toggle)
         self.btn.pack(fill="x", ipady=6)
+        self._render_status()
+        self._render_button()
 
-        # Podpora vývoje: oddělená patička s krátkým textem a barevným tlačítkem
-        # Ko-fi. Je vidět, ale nic nevyskakuje a nepřekáží – jen statický prvek.
+        # Support development: a separate footer with a short text and a coloured
+        # Ko-fi button. Visible, but nothing pops up or gets in the way – just a static element.
         ttk.Separator(self).pack(fill="x", pady=(14, 8))
         footer = ttk.Frame(self)
         footer.pack(fill="x")
-        ttk.Label(footer, text="Ušetřila ti aplikace čas?", foreground="gray").pack(side="left")
+        ttk.Label(footer, text=t("footer_question"), foreground="gray").pack(side="left")
         base = tkfont.nametofont("TkDefaultFont")
         bold = tkfont.Font(family=base.cget("family"), size=base.cget("size"), weight="bold")
-        self._fonts = (bold,)  # držet referenci, jinak ji Tk uvolní
-        self.donate = tk.Label(footer, text="☕  Podpořit na Ko-fi", font=bold,
+        self._fonts = (bold,)  # keep a reference, otherwise Tk frees it
+        self.donate = tk.Label(footer, text=t("btn_donate"), font=bold,
                                bg=KOFI_COLOR, fg="white", padx=12, pady=5,
                                cursor="hand2", borderwidth=0, highlightthickness=0)
         self.donate.pack(side="right")
@@ -173,48 +188,75 @@ class App(ttk.Frame):
         self.donate.bind("<Enter>", lambda e: self.donate.config(bg=KOFI_HOVER))
         self.donate.bind("<Leave>", lambda e: self.donate.config(bg=KOFI_COLOR))
 
+    # ---------- language ----------
+    def change_language(self, _event=None):
+        lang = next(code for code, name in LANGUAGES.items() if name == self.language.get())
+        if lang == get_language():
+            return
+        set_language(lang)
+        save_language(lang)
+        # Rebuild the whole window in the new language; settings and watching state are kept.
+        for child in self.winfo_children():
+            child.destroy()
+        self._build()
+        self._render_libraries()
+        self.refresh(reschedule=False)
+
+    # ---------- state-dependent texts ----------
+    def set_status(self, key, **kwargs):
+        self._status = (key, kwargs)
+        self._render_status()
+
+    def _render_status(self):
+        key, kwargs = self._status
+        self.status.config(text=t(key, **kwargs))
+
+    def _render_button(self):
+        self.btn.config(text=t("btn_stop") if self.armed else t("btn_start"))
+
+    def _render_libraries(self):
+        if self.libs:
+            self.lib_label.config(text=t("libs_found", n=len(self.libs), path=self.libs[0].parent),
+                                  foreground="gray")
+        else:
+            self.lib_label.config(text=t("steam_not_found"), foreground="#c0392b")
+
     # ---------- Steam ----------
     def load_libraries(self):
         self.libs = find_libraries(self.steam_path)
-        if self.libs:
-            n = len(self.libs)
-            self.lib_label.config(text=f"Nalezeno knihoven: {n}  ·  {self.libs[0].parent}")
-        else:
-            self.lib_label.config(text="Steam nebyl nalezen. Vyber jeho složku tlačítkem vpravo.",
-                                  foreground="#c0392b")
+        self._render_libraries()
 
     def choose_path(self):
-        path = filedialog.askdirectory(title="Vyber složku, kde je nainstalovaný Steam")
+        path = filedialog.askdirectory(title=t("choose_folder_title"))
         if path:
             self.steam_path = path
-            self.lib_label.config(foreground="gray")
             self.load_libraries()
             self.refresh(reschedule=False)
 
-    # ---------- hlídání ----------
+    # ---------- watching ----------
     def toggle(self):
         if self.armed:
-            self.disarm("Hlídání je vypnuté.")
+            self.disarm("status_off")
             return
         if not self.libs:
-            messagebox.showwarning(APP_NAME, "Nejdřív vyber složku Steamu.")
+            messagebox.showwarning(APP_NAME, t("choose_folder_first"))
             return
         self.armed, self.idle_since = True, None
         self.seen_download = bool(self.tree.get_children())
-        self.btn.config(text="■  Zastavit hlídání")
+        self._render_button()
         self.refresh(reschedule=False)
 
-    def disarm(self, text):
+    def disarm(self, key, **kwargs):
         self.armed = False
-        self.btn.config(text="▶  Spustit hlídání")
-        self.status.config(text=text)
+        self._render_button()
+        self.set_status(key, **kwargs)
 
     def refresh(self, reschedule=True):
         active = scan(self.libs) if self.libs else []
         self.tree.delete(*self.tree.get_children())
         for name, done, total, flags in active:
             pct = f"{done * 100 // total} %" if total else "–"
-            prog = f"{fmt_bytes(done)} / {fmt_bytes(total)}" if total else "připravuje se"
+            prog = f"{fmt_bytes(done)} / {fmt_bytes(total)}" if total else t("preparing")
             state = f"{' · '.join(describe_flags(flags))}  ({flags})"
             self.tree.insert("", "end", values=(name, prog, pct, state))
         if active:
@@ -230,47 +272,45 @@ class App(ttk.Frame):
     def evaluate(self, downloading):
         if downloading:
             self.seen_download, self.idle_since = True, None
-            self.status.config(text="Hlídám… stahování probíhá.")
+            self.set_status("status_downloading")
             return
         if not self.seen_download:
-            self.status.config(text="Hlídám… čekám, až nějaké stahování začne.")
+            self.set_status("status_waiting")
             return
         now = time.time()
         self.idle_since = self.idle_since or now
         need = max(1, self.quiet_min.get()) * 60
         left = int(need - (now - self.idle_since))
         if left > 0:
-            self.status.config(text=f"Stahování skončilo, ověřuji… ještě {left} s.")
+            self.set_status("status_verifying", left=left)
             return
-        _, verb = ACTIONS[self.action.get()]
-        self.status.config(text="Probíhá odpočet…")
-        self.countdown = CountdownDialog(self.root, max(5, self.countdown_s.get()), verb,
+        self.set_status("status_countdown")
+        self.countdown = CountdownDialog(self.root, max(5, self.countdown_s.get()), self.action_key,
                                          self.execute, self.cancelled)
 
     def cancelled(self):
         self.countdown = None
-        self.disarm("Akce byla zrušena. Hlídání je vypnuté.")
+        self.disarm("status_cancelled")
 
     def execute(self):
         self.countdown = None
-        key, _ = ACTIONS[self.action.get()]
-        cmd = power_command(key)
+        cmd = power_command(self.action_key)
         if self.dry_run.get():
-            self.disarm(f"Zkušební režim: teď by se provedla akce „{self.action.get()}“.")
-            messagebox.showinfo(APP_NAME, "Zkušební režim – nic se nevypnulo.\n\nSpustil by se příkaz:\n"
-                                + " ".join(cmd))
+            self.disarm("status_dry_run", action=t(f"action_{self.action_key}"))
+            messagebox.showinfo(APP_NAME, t("msg_dry_run", cmd=" ".join(cmd)))
             return
-        self.disarm("Provádím akci…")
+        self.disarm("status_executing")
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip() or f"návratový kód {r.returncode}")
+                raise RuntimeError(r.stderr.strip() or t("return_code", code=r.returncode))
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror(APP_NAME, f"Akci se nepodařilo provést:\n{e}")
-            self.status.config(text="Akci se nepodařilo provést.")
+            messagebox.showerror(APP_NAME, t("msg_action_failed", error=e))
+            self.set_status("status_action_failed")
 
 
 def main():
+    set_language(load_saved_language())
     root = tk.Tk()
     root.title(APP_NAME)
     root.minsize(780, 540)

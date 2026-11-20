@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-steam_autoshutdown.py - vypne počítač, jakmile Steam dokončí všechna stahování.
+steam_autoshutdown.py - shuts down the computer once Steam finishes all downloads.
 
-Jak to funguje:
-  Steam má pro každou hru soubor steamapps/appmanifest_<appid>.acf, kde jsou
-  položky StateFlags, BytesToDownload a BytesDownloaded. Skript je pravidelně
-  čte ve všech knihovnách Steamu (libraryfolders.vdf). Když se nic nestahuje
-  po dobu --quiet sekund za sebou, spustí odpočet a potom vypne počítač.
+How it works:
+  For every game Steam keeps a file steamapps/appmanifest_<appid>.acf with
+  the fields StateFlags, BytesToDownload and BytesDownloaded. The script reads
+  them regularly in all Steam libraries (libraryfolders.vdf). Once nothing has
+  downloaded for --quiet seconds in a row, it starts a countdown and then
+  shuts down the computer.
 
-Použití:
-  python3 steam_autoshutdown.py                  # hlídá a pak vypne PC
-  python3 steam_autoshutdown.py --dry-run        # jen vypíše, nic nevypne
-  python3 steam_autoshutdown.py --action sleep   # uspí místo vypnutí
-  python3 steam_autoshutdown.py --status         # jednorázový výpis stavu
+Usage:
+  python3 steam_autoshutdown.py                  # watch, then shut down
+  python3 steam_autoshutdown.py --dry-run        # only print, never shut down
+  python3 steam_autoshutdown.py --action sleep   # sleep instead of shutting down
+  python3 steam_autoshutdown.py --status         # print the state once
+  python3 steam_autoshutdown.py --lang cs        # in Czech (English is the default)
 
-Bez závislostí, jen standardní knihovna Pythonu 3.8+.
+No dependencies, Python 3.8+ standard library only.
 """
 
 import argparse
@@ -26,7 +28,9 @@ import sys
 import time
 from pathlib import Path
 
-# --- StateFlags (bitová maska Steamu) ---------------------------------------
+from i18n import LANGUAGES, load_saved_language, set_language, t
+
+# --- StateFlags (Steam bit mask) --------------------------------------------
 UPDATE_REQUIRED = 2
 UPDATE_RUNNING = 256
 UPDATE_PAUSED = 512
@@ -41,51 +45,52 @@ COMMITTING = 4194304
 ACTIVE_MASK = (UPDATE_RUNNING | UPDATE_STARTED | VALIDATING | ADDING_FILES
                | PREALLOCATING | DOWNLOADING | STAGING | COMMITTING)
 
-# Slovní popis všech známých příznaků (EAppState). Pořadí = pořadí ve výpisu:
-# nejdřív to, co se právě děje, pak pozastavení a nakonec trvalé stavy.
+# Names of all known flags (EAppState). Order = display order: what is
+# happening right now first, then pauses, and finally persistent states.
+# The value is the translation key in i18n.py.
 FLAG_NAMES = [
-    (DOWNLOADING, "Stahuje"),
-    (PREALLOCATING, "Alokuje místo"),
-    (ADDING_FILES, "Přidává soubory"),
-    (STAGING, "Zpracovává data"),
-    (COMMITTING, "Zapisuje"),
-    (VALIDATING, "Ověřuje"),
-    (UPDATE_RUNNING, "Aktualizace běží"),
-    (UPDATE_STARTED, "Aktualizace zahájena"),
-    (8388608, "Zastavuje aktualizaci"),
-    (65536, "Mění konfiguraci"),
-    (UPDATE_PAUSED, "Pozastaveno"),
-    (UPDATE_REQUIRED, "Čeká aktualizace"),
-    (2048, "Odinstalovává"),
-    (4096, "Zálohuje"),
-    (64, "Hra běží"),
-    (16, "Uzamčeno"),
-    (8, "Zašifrováno"),
-    (32, "Chybí soubory"),
-    (128, "Poškozené soubory"),
-    (4, "Nainstalováno"),
-    (1, "Neinstalováno"),
+    (DOWNLOADING, "flag_downloading"),
+    (PREALLOCATING, "flag_preallocating"),
+    (ADDING_FILES, "flag_adding_files"),
+    (STAGING, "flag_staging"),
+    (COMMITTING, "flag_committing"),
+    (VALIDATING, "flag_validating"),
+    (UPDATE_RUNNING, "flag_update_running"),
+    (UPDATE_STARTED, "flag_update_started"),
+    (8388608, "flag_update_stopping"),
+    (65536, "flag_reconfiguring"),
+    (UPDATE_PAUSED, "flag_update_paused"),
+    (UPDATE_REQUIRED, "flag_update_required"),
+    (2048, "flag_uninstalling"),
+    (4096, "flag_backing_up"),
+    (64, "flag_app_running"),
+    (16, "flag_locked"),
+    (8, "flag_encrypted"),
+    (32, "flag_files_missing"),
+    (128, "flag_files_corrupt"),
+    (4, "flag_installed"),
+    (1, "flag_uninstalled"),
 ]
 
 
 def describe_flags(flags):
-    """Rozloží StateFlags na seznam slovních stavů (neznámé bity jako 'bit N')."""
+    """Split StateFlags into a list of state names (unknown bits as 'bit N')."""
     names, known = [], 0
-    for value, label in FLAG_NAMES:
+    for value, key in FLAG_NAMES:
         known |= value
         if flags & value:
-            names.append(label)
+            names.append(t(key))
     rest = flags & ~known
     names += [f"bit {i}" for i in range(rest.bit_length()) if rest >> i & 1]
-    return names or ["Neplatný stav"]
+    return names or [t("flag_invalid")]
 
 
-# --- Minimalistický parser formátu VDF/ACF ----------------------------------
+# --- Minimal VDF/ACF parser ------------------------------------------------
 _TOKEN = re.compile(r'"((?:[^"\\]|\\.)*)"|([{}])')
 
 
 def parse_vdf(text):
-    """Převede text VDF na vnořený dict (klíče v lowercase)."""
+    """Convert VDF text into a nested dict (keys in lowercase)."""
     root, stack, key = {}, [], None
     cur = root
     for m in _TOKEN.finditer(text):
@@ -106,7 +111,7 @@ def parse_vdf(text):
     return root
 
 
-# --- Hledání Steamu a knihoven ----------------------------------------------
+# --- Finding Steam and its libraries ---------------------------------------
 def default_steam_roots():
     home = Path.home()
     system = platform.system()
@@ -131,7 +136,7 @@ def default_steam_roots():
             pass
         roots.append(Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Steam")
         return roots
-    # Linux (vč. Flatpaku)
+    # Linux (incl. Flatpak)
     return [home / ".steam/steam", home / ".local/share/Steam",
             home / ".var/app/com.valvesoftware.Steam/.local/share/Steam"]
 
@@ -152,8 +157,8 @@ def find_libraries(steam_root=None):
                 p = entry.get("path") if isinstance(entry, dict) else entry
                 if p and (Path(p) / "steamapps").is_dir():
                     libs.append(Path(p) / "steamapps")
-        break  # první nalezená instalace stačí
-    # odstranit duplicity
+        break  # the first installation found is enough
+    # remove duplicates
     seen, out = set(), []
     for lib in libs:
         r = lib.resolve()
@@ -163,16 +168,16 @@ def find_libraries(steam_root=None):
     return out
 
 
-# --- Stav stahování ---------------------------------------------------------
+# --- Download state --------------------------------------------------------
 def scan(libraries):
-    """Vrátí seznam aktivně stahovaných her: [(název, staženo, celkem, StateFlags)]."""
+    """Return the games being downloaded: [(name, downloaded, total, StateFlags)]."""
     active = []
     for lib in libraries:
         for acf in lib.glob("appmanifest_*.acf"):
             try:
                 app = parse_vdf(acf.read_text(encoding="utf-8", errors="replace")).get("appstate", {})
             except OSError:
-                continue  # Steam soubor právě přepisuje
+                continue  # Steam is rewriting the file right now
             flags = int(app.get("stateflags", "0") or 0)
             to_dl = int(app.get("bytestodownload", "0") or 0)
             done = int(app.get("bytesdownloaded", "0") or 0)
@@ -191,7 +196,7 @@ def fmt_bytes(n):
         n /= 1024
 
 
-# --- Vypnutí ----------------------------------------------------------------
+# --- Shutdown --------------------------------------------------------------
 def power_command(action):
     system = platform.system()
     if system == "Darwin":
@@ -207,8 +212,7 @@ def power_command(action):
 
 
 def countdown(seconds, action):
-    print(f"\nVšechna stahování dokončena. Akce '{action}' za {seconds} s. "
-          "Zrušíš ji klávesami Ctrl+C.")
+    print(t("cli_countdown", action=action, seconds=seconds))
     try:
         for left in range(seconds, 0, -1):
             print(f"\r  {left:3d} s ", end="", flush=True)
@@ -216,14 +220,14 @@ def countdown(seconds, action):
         print()
         return True
     except KeyboardInterrupt:
-        print("\nZrušeno uživatelem.")
+        print(t("cli_cancelled"))
         return False
 
 
-# --- Hlavní smyčka ----------------------------------------------------------
+# --- Main loop -------------------------------------------------------------
 def _utf8_output():
-    """Na Windows je přesměrovaný výstup v kódování cp1252 a znaky jako „↓“ nebo „™“
-    v něm shodí print(). Přepne stdout/stderr na UTF-8; co nejde zapsat, nahradí."""
+    """On Windows, redirected output uses cp1252, where characters like "↓" or "™"
+    crash print(). Switch stdout/stderr to UTF-8 and replace what can't be written."""
     for stream in (sys.stdout, sys.stderr):
         if stream is not None and hasattr(stream, "reconfigure"):
             try:
@@ -234,28 +238,34 @@ def _utf8_output():
 
 def main():
     _utf8_output()
-    ap = argparse.ArgumentParser(description="Vypne PC po dokončení stahování ve Steamu.")
-    ap.add_argument("--steam-path", help="cesta ke složce Steamu (jinak se najde sama)")
-    ap.add_argument("--interval", type=int, default=15, help="jak často kontrolovat, v sekundách (15)")
-    ap.add_argument("--quiet", type=int, default=120,
-                    help="kolik sekund se nesmí nic stahovat, než se to považuje za hotové (120)")
-    ap.add_argument("--countdown", type=int, default=60, help="odpočet před vypnutím, v sekundách (60)")
-    ap.add_argument("--action", choices=["shutdown", "sleep", "restart"], default="shutdown")
-    ap.add_argument("--no-wait-start", action="store_true",
-                    help="nečekat, až nějaké stahování začne (jinak se vypne až po prvním zachyceném)")
-    ap.add_argument("--dry-run", action="store_true", help="nic nevypínat, jen vypsat")
-    ap.add_argument("--status", action="store_true", help="jednou vypsat stav a skončit")
+    # The language must be known before the help text is built, hence two passes.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--lang", choices=list(LANGUAGES))
+    lang = pre.parse_known_args()[0].lang
+    set_language(lang or load_saved_language())
+
+    ap = argparse.ArgumentParser(description=t("cli_description"))
+    ap.add_argument("--steam-path", help=t("arg_steam_path"))
+    ap.add_argument("--interval", type=int, default=15, help=t("arg_interval"))
+    ap.add_argument("--quiet", type=int, default=120, help=t("arg_quiet"))
+    ap.add_argument("--countdown", type=int, default=60, help=t("arg_countdown"))
+    ap.add_argument("--action", choices=["shutdown", "sleep", "restart"], default="shutdown",
+                    help=t("arg_action"))
+    ap.add_argument("--no-wait-start", action="store_true", help=t("arg_no_wait_start"))
+    ap.add_argument("--dry-run", action="store_true", help=t("arg_dry_run"))
+    ap.add_argument("--status", action="store_true", help=t("arg_status"))
+    ap.add_argument("--lang", choices=list(LANGUAGES), help=t("arg_lang"))
     args = ap.parse_args()
 
     libs = find_libraries(args.steam_path)
     if not libs:
-        sys.exit("Steam se nepodařilo najít. Zadej cestu přes --steam-path.")
-    print("Knihovny Steamu:\n  " + "\n  ".join(str(l) for l in libs))
+        sys.exit(t("cli_steam_not_found"))
+    print(t("cli_libraries") + "\n  " + "\n  ".join(str(l) for l in libs))
 
     if args.status:
         active = scan(libs)
         if not active:
-            print("Nic se nestahuje.")
+            print(t("nothing_downloading"))
         for name, done, total, flags in active:
             print(f"  ↓ {name}: {fmt_bytes(done)} / {fmt_bytes(total)}  "
                   f"[{flags}: {', '.join(describe_flags(flags))}]")
@@ -263,7 +273,7 @@ def main():
 
     seen_download = args.no_wait_start
     idle_since = None
-    print(f"Hlídám stahování (kontrola každých {args.interval} s). Ukončíš to Ctrl+C.\n")
+    print(t("cli_watching", interval=args.interval))
     try:
         while True:
             active = scan(libs)
@@ -273,24 +283,24 @@ def main():
                 seen_download, idle_since = True, None
                 desc = ", ".join(f"{n} ({fmt_bytes(d)}/{fmt_bytes(t)})" if t else n
                                  for n, d, t, _ in active)
-                print(f"[{stamp}] Stahuje se: {desc}")
+                print(t("cli_downloading", stamp=stamp, desc=desc))
             elif not seen_download:
-                print(f"[{stamp}] Čekám, až začne nějaké stahování…")
+                print(t("cli_waiting_start", stamp=stamp))
             else:
                 idle_since = idle_since or now
                 idle = int(now - idle_since)
-                print(f"[{stamp}] Nic se nestahuje už {idle} s (potřeba {args.quiet} s)")
+                print(t("cli_idle", stamp=stamp, idle=idle, quiet=args.quiet))
                 if idle >= args.quiet:
                     if countdown(args.countdown, args.action):
                         cmd = power_command(args.action)
                         if args.dry_run:
-                            print("[dry-run] Spustil bych:", " ".join(cmd))
+                            print(t("cli_dry_run"), " ".join(cmd))
                         else:
                             subprocess.run(cmd, check=False)
                     return
             time.sleep(args.interval)
     except KeyboardInterrupt:
-        print("\nUkončeno.")
+        print(t("cli_stopped"))
 
 
 if __name__ == "__main__":

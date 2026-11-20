@@ -1,9 +1,9 @@
-# Sestaví Steam Auto-Shutdown pro Windows, macOS a Linux.
+# Builds Steam Auto-Shutdown for Windows, macOS and Linux.
 #
-# Spuštění:
-#   * ručně: Actions → Build → Run workflow
-#   * automaticky: pushnutím tagu v* (např. v1.0.0) – navíc se vytvoří
-#     GitHub Release se všemi třemi soubory ke stažení
+# How to run:
+#   * manually: Actions → Build → Run workflow
+#   * automatically: by pushing a v* tag (e.g. v1.0.0) – this also creates
+#     a GitHub Release with all three files to download
 name: Build
 
 on:
@@ -24,7 +24,7 @@ jobs:
             platform: windows
           - os: macos-latest
             platform: macos
-          - os: ubuntu-22.04   # starší glibc = binárka poběží na více distribucích
+          - os: ubuntu-22.04   # older glibc = the binary runs on more distributions
             platform: linux
     runs-on: ${{ matrix.os }}
     env:
@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Python od uv (python-build-standalone) má tkinter na všech systémech
+      # Python from uv (python-build-standalone) has tkinter on every system
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.13.0"
