@@ -70,6 +70,11 @@ Compress-Archive dist\SteamAutoShutdown.exe dist\SteamAutoShutdown-windows-v1.0.
 Bez sestavování to jde spustit i přímo: `python3 steam_autoshutdown_gui.py`
 (GUI) nebo `python3 steam_autoshutdown.py` (verze pro terminál).
 
+## Podpora
+
+Aplikace je zdarma. Pokud ti ušetřila čas a chceš podpořit další vývoj, můžeš
+přispět na **Ko-fi**: https://ko-fi.com/ambi91. Příspěvek je zcela dobrovolný.
+
 ## Licence
 
 Freeware pro osobní použití. Další šíření, úpravy zdrojového kódu a komerční

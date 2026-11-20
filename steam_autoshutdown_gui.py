@@ -13,12 +13,16 @@ import subprocess
 import sys
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+import webbrowser
+from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from steam_autoshutdown import find_libraries, fmt_bytes, power_command, scan
 
 APP_NAME = "Steam Auto-Shutdown"
 SCAN_INTERVAL_MS = 5000
+DONATE_URL = "https://ko-fi.com/ambi91"
+KOFI_COLOR = "#29ABE0"   # modrá Ko-fi
+KOFI_HOVER = "#1E8BBA"
 
 ACTIONS = {  # text v nabídce -> (klíč akce, sloveso pro odpočet)
     "Vypnout počítač": ("shutdown", "vypne"),
@@ -148,6 +152,23 @@ class App(ttk.Frame):
         self.status.pack(fill="x", pady=(0, 8))
         self.btn = ttk.Button(self, text="▶  Spustit hlídání", command=self.toggle)
         self.btn.pack(fill="x", ipady=6)
+
+        # Podpora vývoje: oddělená patička s krátkým textem a barevným tlačítkem
+        # Ko-fi. Je vidět, ale nic nevyskakuje a nepřekáží – jen statický prvek.
+        ttk.Separator(self).pack(fill="x", pady=(14, 8))
+        footer = ttk.Frame(self)
+        footer.pack(fill="x")
+        ttk.Label(footer, text="Ušetřila ti aplikace čas?", foreground="gray").pack(side="left")
+        base = tkfont.nametofont("TkDefaultFont")
+        bold = tkfont.Font(family=base.cget("family"), size=base.cget("size"), weight="bold")
+        self._fonts = (bold,)  # držet referenci, jinak ji Tk uvolní
+        self.donate = tk.Label(footer, text="☕  Podpořit na Ko-fi", font=bold,
+                               bg=KOFI_COLOR, fg="white", padx=12, pady=5,
+                               cursor="hand2", borderwidth=0, highlightthickness=0)
+        self.donate.pack(side="right")
+        self.donate.bind("<Button-1>", lambda e: webbrowser.open(DONATE_URL))
+        self.donate.bind("<Enter>", lambda e: self.donate.config(bg=KOFI_HOVER))
+        self.donate.bind("<Leave>", lambda e: self.donate.config(bg=KOFI_COLOR))
 
     # ---------- Steam ----------
     def load_libraries(self):
