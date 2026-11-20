@@ -8,6 +8,7 @@ The logic (finding libraries, reading manifests, power commands) is shared
 with the terminal version in steam_autoshutdown.py.
 """
 
+import math
 import os
 import subprocess
 import sys
@@ -20,7 +21,8 @@ from i18n import LANGUAGES, get_language, load_saved_language, save_language, se
 from steam_autoshutdown import FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command, scan
 
 APP_NAME = "Steam Auto-Shutdown"
-SCAN_INTERVAL_MS = 5000
+SCAN_INTERVAL_MS = 5000   # how often Steam manifests are read
+TICK_MS = 200             # how often the status (quiet-period countdown) is updated
 DONATE_URL = "https://ko-fi.com/ambi91"
 KOFI_COLOR = "#29ABE0"   # Ko-fi blue
 KOFI_HOVER = "#1E8BBA"
@@ -28,8 +30,130 @@ KOFI_HOVER = "#1E8BBA"
 ACTIONS = ("shutdown", "sleep", "restart")  # texts: action_<key>, countdown_<key> in i18n.py
 
 
+# State colours used by the status indicator and the countdown ring.
+COLORS = {
+    "off": "#9AA0A6",          # grey – not watching
+    "waiting": "#3B82F6",      # blue – watching, nothing downloading yet
+    "downloading": "#22C55E",  # green – downloads in progress
+    "verifying": "#F59E0B",    # amber – quiet period before the countdown
+    "countdown": "#EF4444",    # red – countdown running / action in progress
+    "error": "#EF4444",
+}
+CANCEL_COLOR = "#3B82F6"
+CANCEL_HOVER = "#2563EB"
+
+
+def theme_colors(widget):
+    """Window background and text colour of the current ttk theme (works in dark mode too)."""
+    style = ttk.Style()
+    bg = style.lookup("TFrame", "background") or widget.winfo_toplevel().cget("background")
+    fg = style.lookup("TLabel", "foreground") or "black"
+    return bg, fg
+
+
+def blend(widget, c1, c2, amount):
+    """Mix colour c1 with c2 (amount 0 = c1, 1 = c2). Accepts any Tk colour name."""
+    a, b = widget.winfo_rgb(c1), widget.winfo_rgb(c2)
+    return "#" + "".join(f"{int(x + (y - x) * amount) >> 8:02x}" for x, y in zip(a, b))
+
+
+def ui_font(size, bold=False):
+    family = tkfont.nametofont("TkDefaultFont").cget("family")
+    return (family, size, "bold") if bold else (family, size)
+
+
+class FlatButton(tk.Label):
+    """Coloured button that looks the same on every system (ttk buttons can't be coloured on macOS)."""
+
+    def __init__(self, parent, text, command, color, hover, **kw):
+        kw.setdefault("padx", 14)
+        kw.setdefault("pady", 6)
+        super().__init__(parent, text=text, bg=color, fg="white", cursor="hand2",
+                         borderwidth=0, highlightthickness=0, **kw)
+        self.bind("<Button-1>", lambda e: command())
+        self.bind("<Enter>", lambda e: self.config(bg=hover))
+        self.bind("<Leave>", lambda e: self.config(bg=color))
+
+
+class StatusIndicator(tk.Canvas):
+    """Animated status line: a coloured dot with "radar" pulses while watching,
+    a filling ring during the quiet period, and a headline with a smaller subline."""
+
+    SIZE = 64
+    FRAME_MS = 33  # ~30 fps while animating
+
+    def __init__(self, parent):
+        super().__init__(parent, height=self.SIZE, highlightthickness=0, borderwidth=0)
+        self.mode, self.text, self.sub = "off", "", ""
+        self.ring = None  # (start, duration) in time.time() seconds, for the quiet period
+        self.t0 = time.monotonic()
+        self.bind("<Configure>", lambda e: self.draw())
+        self._job = None
+        self._animate()
+
+    def set(self, mode, text, sub="", ring=None):
+        changed = (mode, text, sub, ring) != (self.mode, self.text, self.sub, self.ring)
+        self.mode, self.text, self.sub, self.ring = mode, text, sub, ring
+        if changed:
+            self.draw()
+
+    def _animate(self):
+        self.draw()
+        animated = self.mode in ("waiting", "downloading", "verifying", "countdown")
+        # Static states still redraw now and then to follow a light/dark mode switch.
+        self._job = self.after(self.FRAME_MS if animated else 1000, self._animate)
+
+    def destroy(self):
+        if self._job:
+            self.after_cancel(self._job)
+        super().destroy()
+
+    def draw(self):
+        bg, fg = theme_colors(self)
+        self.config(bg=bg)
+        self.delete("all")
+        color = COLORS.get(self.mode, COLORS["off"])
+        cx = cy = self.SIZE // 2
+        r = 9
+        t = time.monotonic() - self.t0
+
+        if self.mode in ("waiting", "downloading", "countdown"):
+            # Expanding rings that fade out – slow while waiting, faster while downloading.
+            period = {"waiting": 2.6, "downloading": 1.6, "countdown": 1.0}[self.mode]
+            for offset in (0.0, 0.5):
+                p = (t / period + offset) % 1.0
+                rr = r + p * (cx - r - 2)
+                self.create_oval(cx - rr, cy - rr, cx + rr, cy + rr,
+                                 outline=blend(self, color, bg, p), width=2)
+        if self.mode == "verifying" and self.ring:
+            start, duration = self.ring
+            frac = min(1.0, max(0.0, (time.time() - start) / duration)) if duration else 1.0
+            rr = cx - 6
+            self.create_oval(cx - rr, cy - rr, cx + rr, cy + rr,
+                             outline=blend(self, color, bg, 0.75), width=5)
+            if frac > 0:
+                self.create_arc(cx - rr, cy - rr, cx + rr, cy + rr, start=90, extent=-359.9 * frac,
+                                style="arc", outline=color, width=5)
+
+        # The dot "breathes" gently while watching.
+        if self.mode in ("waiting", "downloading", "verifying", "countdown"):
+            r += 1.5 * math.sin(t * 2 * math.pi / 1.6)
+        self.create_oval(cx - r, cy - r, cx + r, cy + r, fill=color, outline="")
+
+        x = self.SIZE + 8
+        if self.sub:
+            self.create_text(x, cy - 10, text=self.text, anchor="w", fill=fg, font=ui_font(13, True))
+            self.create_text(x, cy + 12, text=self.sub, anchor="w",
+                             fill=blend(self, fg, bg, 0.45), font=ui_font(11))
+        else:
+            self.create_text(x, cy, text=self.text, anchor="w", fill=fg, font=ui_font(13, True))
+
+
 class CountdownDialog(tk.Toplevel):
-    """Cancellable countdown window. Stays on top of other windows."""
+    """Cancellable countdown window with a smoothly draining ring. Stays on top of other windows."""
+
+    RING = 220
+    FRAME_MS = 33
 
     def __init__(self, parent, seconds, action, on_done, on_cancel):
         super().__init__(parent)
@@ -37,21 +161,27 @@ class CountdownDialog(tk.Toplevel):
         self.resizable(False, False)
         self.attributes("-topmost", True)
         self.protocol("WM_DELETE_WINDOW", self.cancel)
-        self.left, self.action = seconds, action
+        self.total, self.action = seconds, action
+        self.deadline = time.monotonic() + seconds
         self.on_done, self.on_cancel = on_done, on_cancel
+        self._last_left = None
 
-        frm = ttk.Frame(self, padding=24)
+        bg, _fg = theme_colors(parent)
+        self.config(bg=bg)
+        frm = ttk.Frame(self, padding=(28, 22))
         frm.pack(fill="both", expand=True)
-        ttk.Label(frm, text=t("dlg_finished"),
-                  font=("TkDefaultFont", 13, "bold")).pack()
-        self.msg = ttk.Label(frm, font=("TkDefaultFont", 12))
-        self.msg.pack(pady=(8, 4))
-        self.num = ttk.Label(frm, font=("TkDefaultFont", 40, "bold"))
-        self.num.pack(pady=(0, 12))
+        ttk.Label(frm, text=t("dlg_finished"), font=ui_font(15, True)).pack()
+        ttk.Label(frm, text=t(f"countdown_{action}"), font=ui_font(12),
+                  foreground="gray").pack(pady=(4, 10))
+        self.canvas = tk.Canvas(frm, width=self.RING, height=self.RING, highlightthickness=0,
+                                borderwidth=0, bg=bg)
+        self.canvas.pack(pady=(0, 16))
         btns = ttk.Frame(frm)
-        btns.pack()
-        ttk.Button(btns, text=t("dlg_cancel"), command=self.cancel).pack(side="left", padx=6)
-        ttk.Button(btns, text=t("dlg_now"), command=self.finish).pack(side="left", padx=6)
+        btns.pack(fill="x")
+        cancel = FlatButton(btns, t("dlg_cancel"), self.cancel, CANCEL_COLOR, CANCEL_HOVER,
+                            font=ui_font(13, True), pady=8)
+        cancel.pack(fill="x")
+        ttk.Button(btns, text=t("dlg_now"), command=self.finish).pack(pady=(8, 0))
 
         self.bind("<Escape>", lambda e: self.cancel())
         self.update_idletasks()
@@ -64,17 +194,46 @@ class CountdownDialog(tk.Toplevel):
         self.tick()
 
     def tick(self):
-        if self.left <= 0:
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
             self.finish()
             return
-        self.msg.config(text=t(f"countdown_{self.action}"))
-        self.num.config(text=f"{self.left} s")
-        self.left -= 1
-        self._job = self.after(1000, self.tick)
+        left = math.ceil(remaining)
+        if left != self._last_left:
+            self._last_left = left
+            self.title(t("dlg_title", left=left, action=t(f"action_{self.action}")))
+        self.draw(remaining, left)
+        self._job = self.after(self.FRAME_MS, self.tick)
+
+    def draw(self, remaining, left):
+        c = self.canvas
+        bg, fg = theme_colors(self)
+        c.config(bg=bg)
+        c.delete("all")
+        frac = remaining / self.total
+        # Blue while there's plenty of time, amber in the last 10 s, red in the last 5 s.
+        color = COLORS["countdown"] if left <= 5 else COLORS["verifying"] if left <= 10 else COLORS["waiting"]
+        pad, width = 12, 14
+        box = (pad, pad, self.RING - pad, self.RING - pad)
+        c.create_oval(*box, outline=blend(self, color, bg, 0.82), width=width)
+        c.create_arc(*box, start=90, extent=359.9 * frac, style="arc", outline=color, width=width)
+        # A small dot at the moving end of the ring.
+        ang = math.radians(90 + 360 * frac)
+        mid, rad = self.RING / 2, (self.RING - 2 * pad) / 2
+        ex, ey = mid + rad * math.cos(ang), mid - rad * math.sin(ang)
+        c.create_oval(ex - width / 2, ey - width / 2, ex + width / 2, ey + width / 2, fill=color, outline="")
+        # The number "pops" at the start of each of the last 5 seconds.
+        size = 60
+        if left <= 5:
+            size = int(60 + 14 * max(0.0, (remaining % 1) - 0.75) * 4)
+        c.create_text(mid, mid - 8, text=str(left), fill=fg, font=ui_font(size, True))
+        c.create_text(mid, mid + 42, text=t("dlg_seconds"), fill=blend(self, fg, bg, 0.45),
+                      font=ui_font(12))
 
     def _close(self):
         if self._job:
             self.after_cancel(self._job)
+            self._job = None
         self.destroy()
 
     def cancel(self):
@@ -121,6 +280,7 @@ class App(ttk.Frame):
         self.countdown = None
         # The status line is kept as (key, params) so it can be re-translated on language change.
         self._status = ("status_off", {})
+        self.active = []
 
         self.action_key = ACTIONS[0]
         self.action_label = tk.StringVar()
@@ -198,7 +358,7 @@ class App(ttk.Frame):
         ttk.Checkbutton(opts, text=t("opt_dry_run"),
                         variable=self.dry_run).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
-        self.status = ttk.Label(self, font=("TkDefaultFont", 12))
+        self.status = StatusIndicator(self)
         self.status.pack(fill="x", pady=(0, 8))
         self.btn = ttk.Button(self, command=self.toggle)
         self.btn.pack(fill="x", ipady=6)
@@ -212,15 +372,10 @@ class App(ttk.Frame):
         footer.pack(fill="x")
         ttk.Label(footer, text=t("footer_question"), foreground="gray").pack(side="left")
         base = tkfont.nametofont("TkDefaultFont")
-        bold = tkfont.Font(family=base.cget("family"), size=base.cget("size"), weight="bold")
-        self._fonts = (bold,)  # keep a reference, otherwise Tk frees it
-        self.donate = tk.Label(footer, text=t("btn_donate"), font=bold,
-                               bg=KOFI_COLOR, fg="white", padx=12, pady=5,
-                               cursor="hand2", borderwidth=0, highlightthickness=0)
+        self.donate = FlatButton(footer, t("btn_donate"), lambda: webbrowser.open(DONATE_URL),
+                                 KOFI_COLOR, KOFI_HOVER, padx=12, pady=5,
+                                 font=ui_font(base.cget("size"), True))
         self.donate.pack(side="right")
-        self.donate.bind("<Button-1>", lambda e: webbrowser.open(DONATE_URL))
-        self.donate.bind("<Enter>", lambda e: self.donate.config(bg=KOFI_HOVER))
-        self.donate.bind("<Leave>", lambda e: self.donate.config(bg=KOFI_COLOR))
 
     # ---------- StateFlags help ----------
     def _on_tree_motion(self, event):
@@ -255,9 +410,24 @@ class App(ttk.Frame):
         self._status = (key, kwargs)
         self._render_status()
 
+    # status key -> (indicator mode, subline key)
+    STATUS_LOOK = {
+        "status_off": ("off", "sub_off"),
+        "status_waiting": ("waiting", "sub_waiting"),
+        "status_downloading": ("downloading", "sub_downloading"),
+        "status_verifying": ("verifying", "sub_verifying"),
+        "status_countdown": ("countdown", "sub_countdown"),
+        "status_executing": ("countdown", None),
+        "status_action_failed": ("error", None),
+    }
+
     def _render_status(self):
         key, kwargs = self._status
-        self.status.config(text=t(key, **kwargs))
+        mode, sub = self.STATUS_LOOK.get(key, ("off", None))
+        ring = None
+        if mode == "verifying" and self.idle_since:
+            ring = (self.idle_since, max(10, self.quiet_s.get()))
+        self.status.set(mode, t(key, **kwargs), t(sub, n=len(self.active)) if sub else "", ring)
 
     def _render_button(self):
         self.btn.config(text=t("btn_stop") if self.armed else t("btn_start"))
@@ -302,7 +472,7 @@ class App(ttk.Frame):
         self.set_status(key, **kwargs)
 
     def refresh(self, reschedule=True):
-        active = scan(self.libs) if self.libs else []
+        active = self.active = scan(self.libs) if self.libs else []
         self.tree.delete(*self.tree.get_children())
         for name, done, total, flags in active:
             pct = f"{done * 100 // total} %" if total else "–"
@@ -314,10 +484,17 @@ class App(ttk.Frame):
         else:
             self.empty_label.place(relx=0.5, rely=0.55, anchor="center")
 
-        if self.armed and self.countdown is None:
-            self.evaluate(bool(active))
+        self.tick(reschedule=False)
         if reschedule:
             self.root.after(SCAN_INTERVAL_MS, self.refresh)
+            self.root.after(TICK_MS, self.tick)
+
+    def tick(self, reschedule=True):
+        """Update the status from the last scan – often, so the quiet-period countdown runs smoothly."""
+        if self.armed and self.countdown is None:
+            self.evaluate(bool(self.active))
+        if reschedule:
+            self.root.after(TICK_MS, self.tick)
 
     def evaluate(self, downloading):
         if downloading:
@@ -330,7 +507,7 @@ class App(ttk.Frame):
         now = time.time()
         self.idle_since = self.idle_since or now
         need = max(10, self.quiet_s.get())
-        left = int(need - (now - self.idle_since))
+        left = math.ceil(need - (now - self.idle_since))
         if left > 0:
             self.set_status("status_verifying", left=left)
             return
