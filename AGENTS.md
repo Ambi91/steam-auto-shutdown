@@ -38,3 +38,8 @@ supported language. English is the default UI language.
   use `--dry-run` or `--status` in the terminal.
 - On Windows, set `PYTHONIOENCODING=utf-8` when output is redirected, otherwise
   test scripts crash on characters like "↓" or "▶".
+- **After every change to the app, launch it for the user to preview.** Start the
+  GUI (`python steam_autoshutdown_gui.py`) in the background so the user can see
+  the change before committing. If the change only affects the terminal version,
+  run `python steam_autoshutdown.py --status` and show the output instead. Close
+  any previous instance you started first, so only one window is open.

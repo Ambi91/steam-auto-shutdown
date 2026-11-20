@@ -105,8 +105,8 @@ class App(ttk.Frame):
         self.action_key = ACTIONS[0]
         self.action_label = tk.StringVar()
         self.language = tk.StringVar()
-        self.quiet_min = tk.IntVar(value=2)
-        self.countdown_s = tk.IntVar(value=60)
+        self.quiet_s = tk.IntVar(value=60)
+        self.countdown_s = tk.IntVar(value=10)
         self.dry_run = tk.BooleanVar(value=False)
 
         self._build()
@@ -119,17 +119,13 @@ class App(ttk.Frame):
         self.language.set(LANGUAGES[get_language()])
 
         top = ttk.Frame(self)
-        top.pack(fill="x")
+        top.pack(fill="x", pady=(0, 10))
         ttk.Label(top, text=APP_NAME, font=("TkDefaultFont", 16, "bold")).pack(side="left")
-        ttk.Button(top, text=t("btn_steam_folder"), command=self.choose_path).pack(side="right")
         lang_box = ttk.Combobox(top, textvariable=self.language, values=list(LANGUAGES.values()),
                                 state="readonly", width=10)
-        lang_box.pack(side="right", padx=(0, 12))
+        lang_box.pack(side="right")
         lang_box.bind("<<ComboboxSelected>>", self.change_language)
         ttk.Label(top, text=t("language")).pack(side="right", padx=(0, 4))
-        # width=1: a long Steam path gets clipped instead of widening the window
-        self.lib_label = ttk.Label(self, foreground="gray", width=1)
-        self.lib_label.pack(fill="x", pady=(2, 10))
 
         box = ttk.LabelFrame(self, text=t("box_downloading"), padding=8)
         box.pack(fill="both", expand=True)
@@ -146,8 +142,22 @@ class App(ttk.Frame):
         self.tree.pack(fill="both", expand=True)
         self.empty_label = ttk.Label(box, text=t("nothing_downloading"), foreground="gray")
 
-        opts = ttk.LabelFrame(self, text=t("box_settings"), padding=8)
-        opts.pack(fill="x", pady=10)
+        # Two columns under the download list: settings on the left, Steam libraries on the right.
+        row = ttk.Frame(self)
+        row.pack(fill="x", pady=10)
+        row.columnconfigure(0, weight=1, uniform="cols")
+        row.columnconfigure(1, weight=1, uniform="cols")
+
+        libs = ttk.LabelFrame(row, text=t("box_libraries"), padding=8)
+        libs.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        ttk.Button(libs, text=t("btn_steam_folder"), command=self.choose_path).pack(side="bottom", anchor="w",
+                                                                                    pady=(6, 0))
+        # width=1: a long Steam path gets clipped instead of widening the window
+        self.lib_label = ttk.Label(libs, foreground="gray", width=1, justify="left", anchor="nw")
+        self.lib_label.pack(fill="both", expand=True)
+
+        opts = ttk.LabelFrame(row, text=t("box_settings"), padding=8)
+        opts.grid(row=0, column=0, sticky="nsew")
         opts.columnconfigure(1, weight=1)
         ttk.Label(opts, text=t("opt_action")).grid(row=0, column=0, sticky="w", pady=3)
         action_box = ttk.Combobox(opts, textvariable=self.action_label,
@@ -157,7 +167,7 @@ class App(ttk.Frame):
         action_box.bind("<<ComboboxSelected>>",
                         lambda e: setattr(self, "action_key", ACTIONS[action_box.current()]))
         ttk.Label(opts, text=t("opt_quiet")).grid(row=1, column=0, sticky="w", pady=3)
-        ttk.Spinbox(opts, from_=1, to=60, textvariable=self.quiet_min, width=6).grid(row=1, column=1, sticky="w")
+        ttk.Spinbox(opts, from_=10, to=3600, increment=10, textvariable=self.quiet_s, width=6).grid(row=1, column=1, sticky="w")
         ttk.Label(opts, text=t("opt_countdown")).grid(row=2, column=0, sticky="w", pady=3)
         ttk.Spinbox(opts, from_=10, to=600, increment=10, textvariable=self.countdown_s,
                     width=6).grid(row=2, column=1, sticky="w")
@@ -216,8 +226,10 @@ class App(ttk.Frame):
 
     def _render_libraries(self):
         if self.libs:
-            self.lib_label.config(text=t("libs_found", n=len(self.libs), path=self.libs[0].parent),
-                                  foreground="gray")
+            # One line with the count, then each library root on its own line.
+            lines = [t("libs_found", n=len(self.libs))]
+            lines += [f"  •  {lib.parent}" for lib in self.libs]
+            self.lib_label.config(text="\n".join(lines), foreground="gray")
         else:
             self.lib_label.config(text=t("steam_not_found"), foreground="#c0392b")
 
@@ -279,7 +291,7 @@ class App(ttk.Frame):
             return
         now = time.time()
         self.idle_since = self.idle_since or now
-        need = max(1, self.quiet_min.get()) * 60
+        need = max(10, self.quiet_s.get())
         left = int(need - (now - self.idle_since))
         if left > 0:
             self.set_status("status_verifying", left=left)

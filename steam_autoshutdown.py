@@ -183,15 +183,15 @@ def scan(libraries):
             done = int(app.get("bytesdownloaded", "0") or 0)
             paused = bool(flags & UPDATE_PAUSED)
             running = bool(flags & ACTIVE_MASK)
-            # Steam sometimes leaves stale byte counts behind on a fully installed
-            # app (StateFlags = Installed only), so leftover bytes only count while
-            # Steam still reports that an update is required.
-            pending = bool(flags & UPDATE_REQUIRED)
-            unfinished = pending and to_dl > 0 and done < to_dl
+            # "Update required" without a pause means the app is waiting in Steam's
+            # download queue (possibly with 0 bytes known so far), so wait for it too.
+            # Byte counts alone are ignored: Steam sometimes leaves stale ones behind
+            # on a fully installed app (StateFlags = Installed only).
+            queued = bool(flags & UPDATE_REQUIRED)
             # A paused app keeps "Update started" set, so pause wins over the
             # active flags – unless Steam reports it is actually downloading.
             downloading = bool(flags & DOWNLOADING)
-            if downloading or (not paused and (running or unfinished)):
+            if downloading or (not paused and (running or queued)):
                 active.append((app.get("name", acf.stem), done, to_dl, flags))
     return active
 
@@ -254,8 +254,8 @@ def main():
     ap = argparse.ArgumentParser(description=t("cli_description"))
     ap.add_argument("--steam-path", help=t("arg_steam_path"))
     ap.add_argument("--interval", type=int, default=15, help=t("arg_interval"))
-    ap.add_argument("--quiet", type=int, default=120, help=t("arg_quiet"))
-    ap.add_argument("--countdown", type=int, default=60, help=t("arg_countdown"))
+    ap.add_argument("--quiet", type=int, default=60, help=t("arg_quiet"))
+    ap.add_argument("--countdown", type=int, default=10, help=t("arg_countdown"))
     ap.add_argument("--action", choices=["shutdown", "sleep", "restart"], default="shutdown",
                     help=t("arg_action"))
     ap.add_argument("--no-wait-start", action="store_true", help=t("arg_no_wait_start"))

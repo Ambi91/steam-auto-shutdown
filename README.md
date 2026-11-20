@@ -9,8 +9,8 @@ Works on Windows, macOS and Linux.
    If Steam is installed somewhere else, pick its folder with the **Steam folder…** button.
 2. Choose what should happen: **Shut down**, **Sleep** or **Restart**.
 3. Click **Start watching** and let Steam download.
-4. Once nothing has downloaded for the set time (2 min by default), a countdown window
-   appears (60 s by default). Click **Cancel** to stop the action.
+4. Once nothing has downloaded for the set time (60 s by default), a countdown window
+   appears (10 s by default). Click **Cancel** to stop the action.
 
 Tip: the first time, try **Test mode**. Nothing shuts down, it only shows the countdown.
 
@@ -32,8 +32,9 @@ https://github.com/Ambi91/steam-auto-shutdown/releases
 
 For every game, Steam keeps a file `steamapps/appmanifest_<id>.acf` with its state
 (`StateFlags`) and how many bytes are left to download. The app reads these files every
-5 s in all Steam libraries (listed in `libraryfolders.vdf`). Games you have paused in
-Steam are ignored.
+5 s in all Steam libraries (listed in `libraryfolders.vdf`). It waits for everything that
+is downloading or waiting in Steam's download queue. Games you have paused in Steam are
+ignored.
 
 ## Building
 
