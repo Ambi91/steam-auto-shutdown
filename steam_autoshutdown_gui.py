@@ -44,6 +44,11 @@ COLORS = {
 }
 CANCEL_COLOR = "#3B82F6"
 CANCEL_HOVER = "#2563EB"
+START_COLOR = "#16A34A"   # green – "Start watching"
+START_HOVER = "#15803D"
+STOP_COLOR = "#DC2626"    # red – "Stop watching"
+STOP_HOVER = "#B91C1C"
+BADGE_COLOR = "#D97706"   # amber – the TEST MODE badge
 
 
 def theme_colors(widget):
@@ -73,9 +78,15 @@ class FlatButton(tk.Label):
         kw.setdefault("pady", 6)
         super().__init__(parent, text=text, bg=color, fg="white", cursor="hand2",
                          borderwidth=0, highlightthickness=0, **kw)
+        self.color, self.hover = color, hover
         self.bind("<Button-1>", lambda e: command())
-        self.bind("<Enter>", lambda e: self.config(bg=hover))
-        self.bind("<Leave>", lambda e: self.config(bg=color))
+        self.bind("<Enter>", lambda e: self.config(bg=self.hover))
+        self.bind("<Leave>", lambda e: self.config(bg=self.color))
+
+    def set_colors(self, color, hover):
+        """Change the colours, e.g. when the button switches between Start and Stop."""
+        self.color, self.hover = color, hover
+        self.config(bg=color)
 
 
 class StatusIndicator(tk.Canvas):
@@ -88,6 +99,7 @@ class StatusIndicator(tk.Canvas):
     def __init__(self, parent):
         super().__init__(parent, height=self.SIZE, highlightthickness=0, borderwidth=0)
         self.mode, self.text, self.sub = "off", "", ""
+        self.badge = ""   # text of a pill on the right (e.g. TEST MODE), "" = hidden
         self.ring = None  # (start, duration) in time.time() seconds, for the quiet period
         self.t0 = time.monotonic()
         self.bind("<Configure>", lambda e: self.draw())
@@ -99,6 +111,24 @@ class StatusIndicator(tk.Canvas):
         self.mode, self.text, self.sub, self.ring = mode, text, sub, ring
         if changed:
             self.draw()
+
+    def set_badge(self, text):
+        if text != self.badge:
+            self.badge = text
+            self.draw()
+
+    def _draw_badge(self, cy):
+        """Amber pill aligned to the right edge."""
+        font = ui_font(11, True)
+        text_w = tkfont.Font(font=font).measure(self.badge)
+        h, pad = 22, 10
+        right = self.winfo_width() - 2
+        left = right - text_w - 2 * pad
+        top, bottom = cy - h / 2, cy + h / 2
+        self.create_oval(left, top, left + h, bottom, fill=BADGE_COLOR, outline="")
+        self.create_oval(right - h, top, right, bottom, fill=BADGE_COLOR, outline="")
+        self.create_rectangle(left + h / 2, top, right - h / 2, bottom, fill=BADGE_COLOR, outline="")
+        self.create_text((left + right) / 2, cy, text=self.badge, fill="white", font=font)
 
     def _animate(self):
         self.draw()
@@ -150,6 +180,8 @@ class StatusIndicator(tk.Canvas):
                              fill=blend(self, fg, bg, 0.45), font=ui_font(11))
         else:
             self.create_text(x, cy, text=self.text, anchor="w", fill=fg, font=ui_font(13, True))
+        if self.badge:
+            self._draw_badge(cy)
 
 
 class CountdownDialog(tk.Toplevel):
@@ -282,24 +314,37 @@ class HelpWindow(tk.Toplevel):
         self.focus_force()
 
 
-class FlagsTooltip(tk.Toplevel):
-    """Borderless popup listing every StateFlags bit and its meaning."""
+class FlagsTooltip(tk.Frame):
+    """Panel listing every StateFlags bit and its meaning.
 
-    def __init__(self, parent, x, y):
-        super().__init__(parent)
-        self.overrideredirect(True)
-        self.attributes("-topmost", True)
-        frm = tk.Frame(self, bg="#ffffe1", bd=1, relief="solid", padx=8, pady=6)
-        frm.pack()
-        tk.Label(frm, text=t("flags_help_title"), bg="#ffffe1", fg="black",
-                 font=("TkDefaultFont", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w")
-        for i, (value, key) in enumerate(sorted(FLAG_NAMES), start=1):
-            tk.Label(frm, text=str(value), bg="#ffffe1", fg="black",
-                     font="TkFixedFont").grid(row=i, column=0, sticky="e", padx=(0, 10))
-            tk.Label(frm, text=t(key), bg="#ffffe1", fg="black").grid(row=i, column=1, sticky="w")
-        tk.Label(frm, text=t("flags_help_note"), bg="#ffffe1", fg="gray25", justify="left").grid(
-            row=len(FLAG_NAMES) + 1, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        self.geometry(f"+{x}+{y}")
+    Drawn inside the main window (not as a separate borderless window, which macOS
+    may refuse to show). The states are laid out in two columns so the panel fits."""
+
+    def __init__(self, root, x, y):
+        # Follows the current theme (light/dark): a slightly lifted panel with a thin border.
+        bg, fg = theme_colors(root)
+        panel = blend(root, bg, fg, 0.06)
+        muted = blend(root, fg, panel, 0.45)
+        super().__init__(root, bg=panel, highlightthickness=1,
+                         highlightbackground=blend(root, bg, fg, 0.25), padx=12, pady=10)
+        flags = sorted(FLAG_NAMES)
+        half = (len(flags) + 1) // 2
+        tk.Label(self, text=t("flags_help_title"), bg=panel, fg=fg,
+                 font=ui_font(12, True)).grid(row=0, column=0, columnspan=5, sticky="w", pady=(0, 4))
+        for i, (value, key) in enumerate(flags):
+            row, col = 1 + i % half, 0 if i < half else 3
+            tk.Label(self, text=str(value), bg=panel, fg=muted,
+                     font="TkFixedFont").grid(row=row, column=col, sticky="e", padx=(0, 8))
+            tk.Label(self, text=t(key), bg=panel, fg=fg, font=ui_font(11)).grid(row=row, column=col + 1, sticky="w")
+        self.columnconfigure(2, minsize=24)  # gap between the two columns
+        tk.Label(self, text=t("flags_help_note"), bg=panel, fg=muted, font=ui_font(11), justify="left").grid(
+            row=half + 1, column=0, columnspan=5, sticky="w", pady=(8, 0))
+        # Keep the panel inside the window: shift it left/up if it would stick out.
+        self.update_idletasks()
+        x = max(4, min(x, root.winfo_width() - self.winfo_reqwidth() - 4))
+        y = max(4, min(y, root.winfo_height() - self.winfo_reqheight() - 4))
+        self.place(x=x, y=y)
+        self.lift()
 
 
 class App(ttk.Frame):
@@ -328,6 +373,7 @@ class App(ttk.Frame):
         self.quiet_s = tk.IntVar(value=60)
         self.countdown_s = tk.IntVar(value=10)
         self.dry_run = tk.BooleanVar(value=False)
+        self.dry_run.trace_add("write", lambda *_: self._render_badge())
 
         self._build()
         self.load_libraries()
@@ -340,7 +386,7 @@ class App(ttk.Frame):
 
         top = ttk.Frame(self)
         top.pack(fill="x", pady=(0, 10))
-        ttk.Label(top, text=APP_NAME, font=("TkDefaultFont", 16, "bold")).pack(side="left")
+        ttk.Label(top, text=APP_NAME, font=ui_font(16, True)).pack(side="left")
         lang_box = ttk.Combobox(top, textvariable=self.language, values=list(LANGUAGES.values()),
                                 state="readonly", width=10)
         lang_box.pack(side="right")
@@ -359,7 +405,7 @@ class App(ttk.Frame):
         self.tree.heading("state", text=f"{t('col_state')}  (?)")
         self._flags_tip = None
         self.tree.bind("<Motion>", self._on_tree_motion)
-        self.tree.bind("<Leave>", lambda e: self._hide_flags_tip())
+        self.tree.bind("<Leave>", self._on_tree_leave)
         self.tree.column("game", width=200, minwidth=120)
         self.tree.column("progress", width=150, minwidth=110, anchor="center", stretch=False)
         self.tree.column("pct", width=50, minwidth=40, anchor="center", stretch=False)
@@ -401,8 +447,11 @@ class App(ttk.Frame):
 
         self.status = StatusIndicator(self)
         self.status.pack(fill="x", pady=(0, 8))
-        self.btn = ttk.Button(self, command=self.toggle)
-        self.btn.pack(fill="x", ipady=6)
+        self._render_badge()
+        # The main action gets a large coloured button (ttk buttons ignore height and colour on macOS).
+        self.btn = FlatButton(self, "", self.toggle, START_COLOR, START_HOVER,
+                              font=ui_font(14, True), pady=11)
+        self.btn.pack(fill="x")
         self._render_status()
         self._render_button()
 
@@ -431,8 +480,18 @@ class App(ttk.Frame):
         over_state_heading = (self.tree.identify_region(event.x, event.y) == "heading"
                               and self.tree.identify_column(event.x) == "#4")
         if over_state_heading and self._flags_tip is None:
-            self._flags_tip = FlagsTooltip(self.root, event.x_root + 12, event.y_root + 16)
+            # Just under the heading row, so the panel never covers the pointer.
+            x = event.x_root - self.root.winfo_rootx() - 40
+            y = self.tree.winfo_rooty() - self.root.winfo_rooty() + 34
+            self._flags_tip = FlagsTooltip(self.root, x, y)
         elif not over_state_heading:
+            self._hide_flags_tip()
+
+    def _on_tree_leave(self, _event):
+        # Showing the tooltip can send a stray <Leave> although the pointer is still over the
+        # list – hide only when the pointer has really left it.
+        x, y = self.tree.winfo_pointerxy()
+        if self.tree.winfo_containing(x, y) is not self.tree:
             self._hide_flags_tip()
 
     def _hide_flags_tip(self):
@@ -480,8 +539,16 @@ class App(ttk.Frame):
         held = ", ".join(item[1] for item in self.held())
         self.status.set(mode, t(key, **kwargs), t(sub, n=len(self.active), names=held) if sub else "", ring)
 
+    def _render_badge(self):
+        """Show a TEST MODE pill next to the status while Test mode is on."""
+        self.status.set_badge(t("badge_test_mode") if self.dry_run.get() else "")
+
     def _render_button(self):
         self.btn.config(text=t("btn_stop") if self.armed else t("btn_start"))
+        if self.armed:
+            self.btn.set_colors(STOP_COLOR, STOP_HOVER)
+        else:
+            self.btn.set_colors(START_COLOR, START_HOVER)
 
     def _render_libraries(self):
         if self.libs:
