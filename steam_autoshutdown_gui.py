@@ -19,7 +19,7 @@ from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from i18n import LANGUAGES, get_language, load_saved_language, save_language, set_language, t
-from steam_autoshutdown import (FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command,
+from steam_autoshutdown import (DOWNLOADING, FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command,
                                 scan_states)
 
 APP_NAME = "Auto Shutdown for Steam"
@@ -396,6 +396,7 @@ class App(ttk.Frame):
 
         box = ttk.LabelFrame(self, text=t("box_downloading"), padding=8)
         box.pack(fill="both", expand=True)
+        self.list_box = box  # its title also shows live counts, see _render_list_title()
         cols = ("game", "progress", "pct", "state")
         self.tree = ttk.Treeview(box, columns=cols, show="headings", height=6)
         self.tree.heading("game", text=t("col_game"))
@@ -605,11 +606,23 @@ class App(ttk.Frame):
             self.empty_label.place_forget()
         else:
             self.empty_label.place(relx=0.5, rely=0.55, anchor="center")
+        self._render_list_title()
 
         self.tick(reschedule=False)
         if reschedule:
             self.root.after(SCAN_INTERVAL_MS, self.refresh)
             self.root.after(TICK_MS, self.tick)
+
+    def _render_list_title(self):
+        """List title with counts, so it's clear the app waits for queued games too."""
+        title = t("box_downloading")
+        if self.active or self.held():
+            downloading = sum(1 for item in self.active if item[4] & DOWNLOADING)
+            counts = t("box_counts", d=downloading, q=len(self.active) - downloading)
+            if self.held():
+                counts += t("box_counts_paused", p=len(self.held()))
+            title = f"{title}  ·  {counts}"
+        self.list_box.config(text=title)
 
     def held(self):
         """Paused downloads that were downloading during this watch – they hold the action."""
