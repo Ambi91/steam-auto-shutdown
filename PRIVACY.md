@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Last updated: 20 November 2026*
+*Last updated: 22 November 2026*
 
 Auto Shutdown for Steam ("the app") is made by Jan Ambrož. This policy explains what
 the app does with your data. In short: **it collects nothing and sends nothing.**
@@ -9,7 +9,13 @@ the app does with your data. In short: **it collects nothing and sends nothing.*
 
 - Steam's own files on your computer (`libraryfolders.vdf` and
   `appmanifest_*.acf` in your Steam libraries) to see which games are
-  downloading. They are only read, never changed, and never leave your computer.
+  downloading, and Steam's download log (`logs/content_log.txt`) to see which game
+  is downloading right now. They are only read, never changed, and never leave your
+  computer.
+- How many bytes have been received over the network (by Steam's processes on macOS,
+  by all network interfaces on Windows and Linux), to estimate download progress and
+  speed. Only these totals are read – never what is downloaded, from where, or any
+  other traffic details – and they are not stored or sent anywhere.
 - On Windows, the Steam installation path from the Windows registry.
 
 ## What the app stores

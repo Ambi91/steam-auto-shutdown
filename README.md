@@ -38,6 +38,13 @@ empty. If you pause a download in Steam while watching, the app waits and doesn'
 down until you resume it or remove it from the queue. Games that were already paused
 before you started watching are ignored. The same is explained in the app under **Help**.
 
+Steam doesn't rewrite the manifests while it downloads, so the byte counts in them stand
+still until a download pauses or finishes. For the game being downloaded the app therefore
+shows a live estimate (marked “~”) and the download speed: Steam's `logs/content_log.txt`
+tells which game is downloading and how far it was when it started, and the bytes Steam has
+received since then are added (on macOS counted for Steam's processes via `nettop`; on Linux
+and Windows for all network interfaces). See `download_progress.py`.
+
 ## Building
 
 PyInstaller only builds for the system it runs on. So:

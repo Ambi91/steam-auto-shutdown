@@ -18,6 +18,7 @@ import webbrowser
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
+from download_progress import ProgressEstimator
 from i18n import LANGUAGES, get_language, load_saved_language, save_language, set_language, t
 from steam_autoshutdown import (DOWNLOADING, FLAG_NAMES, describe_flags, find_libraries, fmt_bytes, power_command,
                                 scan_states)
@@ -366,6 +367,7 @@ class App(ttk.Frame):
         self.paused = []
         self.watched = set()  # appids seen downloading during this watch
         self.help_window = None
+        self.estimator = None  # live progress estimate, created once Steam is found
 
         self.action_key = ACTIONS[0]
         self.action_label = tk.StringVar()
@@ -408,8 +410,8 @@ class App(ttk.Frame):
         self.tree.bind("<Motion>", self._on_tree_motion)
         self.tree.bind("<Leave>", self._on_tree_leave)
         self.tree.column("game", width=200, minwidth=120)
-        self.tree.column("progress", width=150, minwidth=110, anchor="center", stretch=False)
-        self.tree.column("pct", width=50, minwidth=40, anchor="center", stretch=False)
+        self.tree.column("progress", width=230, minwidth=110, anchor="center", stretch=False)
+        self.tree.column("pct", width=60, minwidth=40, anchor="center", stretch=False)
         self.tree.column("state", width=340, minwidth=160)
         self.tree.pack(fill="both", expand=True)
         self.empty_label = ttk.Label(box, text=t("nothing_downloading"), foreground="gray")
@@ -564,6 +566,9 @@ class App(ttk.Frame):
     def load_libraries(self):
         self.libs = find_libraries(self.steam_path)
         self._render_libraries()
+        # The first library is the main Steam folder, which holds logs/content_log.txt.
+        log = self.libs[0].parent / "logs" / "content_log.txt" if self.libs else None
+        self.estimator = ProgressEstimator(log) if self.libs else None
 
     def choose_path(self):
         path = filedialog.askdirectory(title=t("choose_folder_title"))
@@ -597,10 +602,28 @@ class App(ttk.Frame):
             self.watched.update(item[0] for item in self.active)
         active = self.active + self.held()  # paused downloads that hold the action are listed too
         self.tree.delete(*self.tree.get_children())
-        for _appid, name, done, total, flags in active:
-            pct = f"{done * 100 // total} %" if total else "–"
-            prog = f"{fmt_bytes(done)} / {fmt_bytes(total)}" if total else t("preparing")
-            state = f"{' · '.join(describe_flags(flags))}  ({flags})"
+        # Steam doesn't update the manifest while downloading, so the app being downloaded
+        # gets a live estimate (marked with "~") plus the download speed.
+        estimates = self.estimator.estimate(self.active) if self.estimator else {}
+        for appid, name, done, total, flags in active:
+            est = estimates.get(appid)
+            if est and total:
+                done_est, speed = est
+                pct = f"~{done_est * 100 // total} %"
+                prog = f"~{fmt_bytes(done_est)} / {fmt_bytes(total)}"
+                if speed:
+                    prog += f"  ·  {fmt_bytes(speed)}/s"
+            else:
+                pct = f"{done * 100 // total} %" if total else "–"
+                prog = f"{fmt_bytes(done)} / {fmt_bytes(total)}" if total else t("preparing")
+            labels = describe_flags(flags)
+            # The manifest's flags can't tell downloading from paused (Steam doesn't rewrite
+            # them while downloading), so Steam's log decides what is said first.
+            live = self._live_state(appid, flags)
+            first = {"downloading": t("flag_downloading"), "paused": t("flag_update_paused")}.get(live)
+            if first and first not in labels:
+                labels = [first] + labels
+            state = f"{' · '.join(labels)}  ({flags})"
             self.tree.insert("", "end", values=(name, prog, pct, state))
         if active:
             self.empty_label.place_forget()
@@ -617,12 +640,24 @@ class App(ttk.Frame):
         """List title with counts, so it's clear the app waits for queued games too."""
         title = t("box_downloading")
         if self.active or self.held():
-            downloading = sum(1 for item in self.active if item[4] & DOWNLOADING)
-            counts = t("box_counts", d=downloading, q=len(self.active) - downloading)
-            if self.held():
-                counts += t("box_counts_paused", p=len(self.held()))
+            states = [self._live_state(item[0], item[4]) for item in self.active]
+            downloading, paused = states.count("downloading"), states.count("paused") + len(self.held())
+            counts = t("box_counts", d=downloading, q=states.count("queued"))
+            if paused:
+                counts += t("box_counts_paused", p=paused)
             title = f"{title}  ·  {counts}"
         self.list_box.config(text=title)
+
+    def _live_state(self, appid, flags):
+        """'downloading', 'paused' or 'queued' – from Steam's log when it knows, else from the flags."""
+        if self.estimator and self.estimator.log is not None:
+            if appid == self.estimator.current:
+                return "downloading"
+            if self.estimator.is_paused(appid):
+                return "paused"
+            if appid in self.estimator.log.downloading:
+                return "queued"
+        return "downloading" if flags & DOWNLOADING else "queued"
 
     def held(self):
         """Paused downloads that were downloading during this watch – they hold the action."""

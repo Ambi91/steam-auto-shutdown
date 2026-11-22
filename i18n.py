@@ -112,6 +112,9 @@ Only once the whole queue is empty. When the last download finishes, the app wai
 # Paused downloads
 If you pause a download in Steam, the app will not shut the computer down. It waits until you resume the download or remove it from the queue. Games that were already paused before you started watching are ignored, so an old, forgotten download doesn't block the shutdown forever.
 
+# Progress
+Steam doesn't update its files while it downloads, only when a download starts, pauses or finishes. So for the game being downloaded the app shows an estimate marked with “~”, together with the download speed. It adds what Steam has received over the network to what Steam last reported. The estimate can be a little off – on Windows and Linux other network traffic counts too – and the exact figure appears again whenever Steam writes it.
+
 # Cancelling
 You can cancel at any time: press Cancel (or Esc) in the countdown window, or Stop watching in the main window.
 
@@ -241,6 +244,9 @@ Až když se celá fronta vyprázdní. Po dokončení posledního stahování ap
 
 # Pozastavené stahování
 Když ve Steamu stahování pozastavíš, aplikace počítač nevypne. Počká, dokud stahování znovu nespustíš nebo ho nevyřadíš z fronty. Hry, které byly pozastavené už před spuštěním hlídání, se nepočítají, aby staré zapomenuté stahování neblokovalo vypnutí navždy.
+
+# Průběh
+Steam během stahování neaktualizuje své soubory, jen když stahování začne, pozastaví se nebo skončí. U hry, která se právě stahuje, proto aplikace ukazuje odhad označený „~“ spolu s rychlostí stahování. K poslednímu údaji ze Steamu přičítá, co Steam přijal po síti. Odhad se může trochu lišit – na Windows a Linuxu se počítá i jiný síťový provoz – a přesný údaj se objeví, jakmile ho Steam zapíše.
 
 # Zrušení
 Kdykoli můžeš zrušit: v okně s odpočtem tlačítkem Zrušit (nebo klávesou Esc), případně v hlavním okně tlačítkem Zastavit hlídání.

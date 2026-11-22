@@ -27,6 +27,8 @@ supported language. English is the default UI language.
 - Python 3.8+ standard library only (tkinter), no dependencies.
 - `steam_autoshutdown.py` – core logic and the terminal version.
 - `steam_autoshutdown_gui.py` – the graphical version (tkinter).
+- `download_progress.py` – live progress estimate (Steam's content log + network
+  bytes received), since Steam doesn't update the manifests while downloading.
 - `i18n.py` – all user-facing text, in English (default) and Czech.
   Add every new string in both languages and use it in code via `t("key")`.
 - `SteamAutoShutdown.spec` and `.github/workflows/build.yml` – PyInstaller builds.
