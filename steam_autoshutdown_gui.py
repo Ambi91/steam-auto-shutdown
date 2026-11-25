@@ -10,10 +10,12 @@ with the terminal version in steam_autoshutdown.py.
 
 import math
 import os
+import platform
 import subprocess
 import sys
 import time
 import tkinter as tk
+import urllib.parse
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
@@ -29,6 +31,8 @@ TICK_MS = 200             # how often the status (quiet-period countdown) is upd
 DONATE_URL = "https://ko-fi.com/ambi91"
 KOFI_COLOR = "#29ABE0"   # Ko-fi blue
 KOFI_HOVER = "#1E8BBA"
+REPO_URL = "https://github.com/Ambi91/steam-auto-shutdown"
+SUPPORT_EMAIL = "jan.ambroz.91@gmail.com"
 
 ACTIONS = ("shutdown", "sleep", "restart")  # texts: action_<key>, countdown_<key> in i18n.py
 
@@ -69,6 +73,40 @@ def blend(widget, c1, c2, amount):
 def ui_font(size, bold=False):
     family = tkfont.nametofont("TkDefaultFont").cget("family")
     return (family, size, "bold") if bold else (family, size)
+
+
+def build_type():
+    """How this copy of the app was installed – helps when reading bug reports."""
+    if not getattr(sys, "frozen", False):
+        return "Python source"
+    if "WindowsApps" in sys.executable:  # MSIX packages live in Program Files\WindowsApps
+        return "Microsoft Store"
+    return "standalone build"
+
+
+def environment_info():
+    """OS and build type only – nothing personal. The user sees it before sending."""
+    system = platform.system()
+    if system == "Darwin":
+        os_name = f"macOS {platform.mac_ver()[0]}"
+    elif system == "Windows":
+        os_name = f"Windows {platform.release()} ({platform.version()})"
+    else:
+        os_name = f"{system} {platform.release()}"
+    return f"{os_name}, {platform.machine()}, {build_type()}, Python {platform.python_version()}"
+
+
+def issue_url(template):
+    """New GitHub issue from a form in .github/ISSUE_TEMPLATE, with the environment pre-filled."""
+    query = urllib.parse.urlencode({"template": f"{template}.yml", "environment": environment_info()})
+    return f"{REPO_URL}/issues/new?{query}"
+
+
+def email_url():
+    query = urllib.parse.urlencode({"subject": t("feedback_mail_subject", app=APP_NAME),
+                                    "body": t("feedback_mail_body", env=environment_info())},
+                                   quote_via=urllib.parse.quote)
+    return f"mailto:{SUPPORT_EMAIL}?{query}"
 
 
 class FlatButton(tk.Label):
@@ -389,12 +427,15 @@ class App(ttk.Frame):
         top = ttk.Frame(self)
         top.pack(fill="x", pady=(0, 10))
         ttk.Label(top, text=APP_NAME, font=ui_font(16, True)).pack(side="left")
+        # Packed from the right, so on screen: Feedback  Help   Language [combo]
         lang_box = ttk.Combobox(top, textvariable=self.language, values=list(LANGUAGES.values()),
                                 state="readonly", width=10)
         lang_box.pack(side="right")
         lang_box.bind("<<ComboboxSelected>>", self.change_language)
         ttk.Label(top, text=t("language")).pack(side="right", padx=(0, 4))
         ttk.Button(top, text=t("btn_help"), command=self.show_help).pack(side="right", padx=(0, 16))
+        self.feedback_btn = ttk.Button(top, text=t("btn_feedback"), command=self.show_feedback_menu)
+        self.feedback_btn.pack(side="right", padx=(0, 6))
 
         box = ttk.LabelFrame(self, text=t("box_downloading"), padding=8)
         box.pack(fill="both", expand=True)
@@ -469,6 +510,19 @@ class App(ttk.Frame):
                                  KOFI_COLOR, KOFI_HOVER, padx=12, pady=5,
                                  font=ui_font(base.cget("size"), True))
         self.donate.pack(side="right")
+
+    # ---------- feedback ----------
+    def show_feedback_menu(self):
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label=t("feedback_bug"), command=lambda: webbrowser.open(issue_url("bug_report")))
+        menu.add_command(label=t("feedback_idea"), command=lambda: webbrowser.open(issue_url("feature_request")))
+        menu.add_separator()
+        menu.add_command(label=t("feedback_email", email=SUPPORT_EMAIL), command=lambda: webbrowser.open(email_url()))
+        b = self.feedback_btn
+        try:
+            menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            menu.grab_release()
 
     # ---------- help ----------
     def show_help(self):

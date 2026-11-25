@@ -92,6 +92,14 @@ The Windows build is also packaged as MSIX for the Microsoft Store (artifact
 
 The app collects and sends no data. See [PRIVACY.md](PRIVACY.md).
 
+## Feedback
+
+Found a bug or have an idea? Click **Feedback** at the top of the app window, or:
+
+- [Report a problem](https://github.com/Ambi91/steam-auto-shutdown/issues/new?template=bug_report.yml)
+- [Suggest an improvement](https://github.com/Ambi91/steam-auto-shutdown/issues/new?template=feature_request.yml)
+- No GitHub account? Email **jan.ambroz.91@gmail.com**.
+
 ## Support
 
 The app is free. If it saved you time and you'd like to support further development,

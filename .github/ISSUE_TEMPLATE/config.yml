@@ -1,0 +1,6 @@
+blank_issues_enabled: true
+contact_links:
+  # GitHub only accepts http(s) links here, so this points to the README section with the email.
+  - name: No GitHub account? Send an email
+    url: https://github.com/Ambi91/steam-auto-shutdown#feedback
+    about: The address is in the README, or use Feedback → Send an email in the app.

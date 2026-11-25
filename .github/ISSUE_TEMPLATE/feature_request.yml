@@ -1,0 +1,26 @@
+name: Suggest an improvement
+description: An idea for a new feature or a better way to do something.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! English or Czech is fine.
+        No GitHub account? Email jan.ambroz.91@gmail.com instead.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What would you like the app to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it help?
+      description: The situation where you'd use it.
+  - type: input
+    id: environment
+    attributes:
+      label: System
+      description: Filled in automatically when you open this form from the app.

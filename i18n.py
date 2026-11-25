@@ -100,6 +100,12 @@ STRINGS = {
         "status_off": "Watching is off.",
         "status_paused": "Watching… a download is paused.",
         "sub_paused": "Paused in Steam: {names}. I won't shut down until it's resumed.",
+        "btn_feedback": "✉  Feedback",
+        "feedback_bug": "Report a problem…",
+        "feedback_idea": "Suggest an improvement…",
+        "feedback_email": "Send an email ({email})",
+        "feedback_mail_subject": "{app} – feedback",
+        "feedback_mail_body": "Hi,\n\n\n\n---\nSystem: {env}\n",
         "btn_help": "?  Help",
         "help_title": "Help",
         "help_close": "Close",
@@ -124,7 +130,10 @@ With Test mode on, nothing shuts down – you only see the countdown and a messa
 # Tips
 • Keep Steam running – the app only reads Steam's files, it doesn't download anything itself.
 • Make sure the computer doesn't go to sleep on its own before the downloads finish (Windows power settings).
-• The “State” column shows exactly what Steam reports for each game. Hover over “(?)” in its heading for an explanation.""",
+• The “State” column shows exactly what Steam reports for each game. Hover over “(?)” in its heading for an explanation.
+
+# Problems and ideas
+Found a bug or have an idea? Click “Feedback” at the top of the main window. You can report it on GitHub (the form already contains your system version) or send an email to jan.ambroz.91@gmail.com. Thank you!""",
         "sub_off": "Press Start watching and let Steam download.",
         "sub_waiting": "Nothing is downloading yet. Start a download in Steam.",
         "sub_downloading": "Active downloads: {n}. I'll act once they're all done.",
@@ -233,6 +242,12 @@ With Test mode on, nothing shuts down – you only see the countdown and a messa
         "status_off": "Hlídání je vypnuté.",
         "status_paused": "Hlídám… stahování je pozastavené.",
         "sub_paused": "Pozastaveno ve Steamu: {names}. Dokud se znovu nespustí, nevypnu.",
+        "btn_feedback": "✉  Zpětná vazba",
+        "feedback_bug": "Nahlásit problém…",
+        "feedback_idea": "Navrhnout vylepšení…",
+        "feedback_email": "Napsat e-mail ({email})",
+        "feedback_mail_subject": "{app} – zpětná vazba",
+        "feedback_mail_body": "Dobrý den,\n\n\n\n---\nSystém: {env}\n",
         "btn_help": "?  Nápověda",
         "help_title": "Nápověda",
         "help_close": "Zavřít",
@@ -257,7 +272,10 @@ Se zapnutým zkušebním režimem se nic nevypne – uvidíš jen odpočet a zpr
 # Tipy
 • Nech Steam zapnutý – aplikace jen čte soubory Steamu, sama nic nestahuje.
 • Zkontroluj, že se počítač neuspí sám dřív, než stahování skončí (nastavení napájení ve Windows).
-• Sloupec „Stav“ ukazuje přesně to, co Steam u hry hlásí. Vysvětlivky uvidíš po najetí myší na „(?)“ v záhlaví.""",
+• Sloupec „Stav“ ukazuje přesně to, co Steam u hry hlásí. Vysvětlivky uvidíš po najetí myší na „(?)“ v záhlaví.
+
+# Problémy a nápady
+Narazil jsi na chybu nebo máš nápad? Klikni nahoře v hlavním okně na „Zpětná vazba“. Můžeš to nahlásit na GitHubu (formulář už obsahuje verzi tvého systému), nebo napsat e-mail na jan.ambroz.91@gmail.com. Díky!""",
         "sub_off": "Klikni na Spustit hlídání a nech Steam stahovat.",
         "sub_waiting": "Zatím se nic nestahuje. Spusť stahování ve Steamu.",
         "sub_downloading": "Aktivních stahování: {n}. Zasáhnu, až všechna skončí.",

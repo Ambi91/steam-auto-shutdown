@@ -39,7 +39,10 @@ certificate is needed.
 - **Category:** Utilities & tools.
 - **Privacy policy URL:**
   https://github.com/Ambi91/steam-auto-shutdown/blob/main/PRIVACY.md
-- **Support/website:** https://github.com/Ambi91/steam-auto-shutdown
+- **Website:** https://github.com/Ambi91/steam-auto-shutdown
+- **Support contact info:** jan.ambroz.91@gmail.com (or
+  https://github.com/Ambi91/steam-auto-shutdown/issues). Users can also reach both
+  from **Feedback** in the app.
 - **Age ratings (IARC questionnaire):** category "Utility"; answer *No* to
   everything (no violence, no user interaction or sharing, no location, no
   purchases, no unrestricted internet). Expected rating: 3+ / Everyone.

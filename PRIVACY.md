@@ -1,6 +1,6 @@
 # Privacy Policy
 
-*Last updated: 22 November 2026*
+*Last updated: 25 November 2026*
 
 Auto Shutdown for Steam ("the app") is made by Jan Ambrož. This policy explains what
 the app does with your data. In short: **it collects nothing and sends nothing.**
@@ -30,6 +30,12 @@ the app does with your data. In short: **it collects nothing and sends nothing.*
 - If you click **Support on Ko-fi**, your web browser opens
   https://ko-fi.com/ambi91. What happens there is covered by
   [Ko-fi's privacy policy](https://more.ko-fi.com/privacy).
+- If you choose **Feedback → Report a problem / Suggest an improvement**, your web
+  browser opens a GitHub form; with **Send an email**, your email app opens a new
+  message. Both are pre-filled with your operating system version and how the app was
+  installed (e.g. Microsoft Store), so you can see and edit them before sending.
+  Nothing is sent unless you send it yourself. GitHub is covered by
+  [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 
 ## Power actions
 
@@ -44,7 +50,8 @@ The app collects no personal information from anyone, including children.
 
 Changes to this policy are published at
 https://github.com/Ambi91/steam-auto-shutdown/blob/main/PRIVACY.md.
-Questions: open an issue at https://github.com/Ambi91/steam-auto-shutdown/issues.
+Questions: open an issue at https://github.com/Ambi91/steam-auto-shutdown/issues
+or email jan.ambroz.91@gmail.com.
 
 ---
 
