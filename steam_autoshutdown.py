@@ -179,9 +179,11 @@ def scan_states(libraries):
     (appid, name, downloaded, total, StateFlags).
 
     active – downloading now or waiting in Steam's download queue
+             (updates scheduled for later are left out)
     paused – download paused in Steam (not active)
     """
     active, paused_items = [], []
+    now = time.time()
     for lib in libraries:
         for acf in lib.glob("appmanifest_*.acf"):
             try:
@@ -197,7 +199,11 @@ def scan_states(libraries):
             # download queue (possibly with 0 bytes known so far), so wait for it too.
             # Byte counts alone are ignored: Steam sometimes leaves stale ones behind
             # on a fully installed app (StateFlags = Installed only).
-            queued = bool(flags & UPDATE_REQUIRED)
+            # An update Steam has scheduled for later (Downloads → "Scheduled") has a
+            # future ScheduledAutoUpdate timestamp. It isn't queued yet, so skip it;
+            # once its time comes, Steam starts it and the active flags pick it up.
+            scheduled = int(app.get("scheduledautoupdate", "0") or 0) > now
+            queued = bool(flags & UPDATE_REQUIRED) and not scheduled
             # A paused app keeps "Update started" set, so pause wins over the
             # active flags – unless Steam reports it is actually downloading.
             downloading = bool(flags & DOWNLOADING)

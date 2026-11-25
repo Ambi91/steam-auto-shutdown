@@ -110,7 +110,7 @@ STRINGS = {
         "help_title": "Help",
         "help_close": "Close",
         "help_text": """# What the app watches
-The app watches Steam's download queue: games that are downloading right now and games waiting in the queue, ready to download. It looks at all your Steam libraries, on every drive.
+The app watches Steam's download queue: games that are downloading right now and games waiting in the queue, ready to download. Updates Steam has scheduled for later (the “Scheduled” section of Downloads) are left out until Steam starts them. It looks at all your Steam libraries, on every drive.
 
 # When it shuts down
 Only once the whole queue is empty. When the last download finishes, the app waits for the set time (“Wait with no downloads”) in case Steam starts another one. Then a countdown window appears and, when it ends, the computer shuts down, sleeps or restarts – whichever you chose.
@@ -252,7 +252,7 @@ Found a bug or have an idea? Click “Feedback” at the top of the main window.
         "help_title": "Nápověda",
         "help_close": "Zavřít",
         "help_text": """# Co aplikace hlídá
-Aplikace hlídá frontu stahování ve Steamu: hry, které se právě stahují, i hry, které čekají ve frontě připravené ke stažení. Prochází všechny tvoje knihovny Steamu na všech discích.
+Aplikace hlídá frontu stahování ve Steamu: hry, které se právě stahují, i hry, které čekají ve frontě připravené ke stažení. Aktualizace, které má Steam naplánované na později (sekce „Naplánováno“ ve Stahování), vynechává, dokud je Steam nespustí. Prochází všechny tvoje knihovny Steamu na všech discích.
 
 # Kdy dojde k vypnutí
 Až když se celá fronta vyprázdní. Po dokončení posledního stahování aplikace ještě počká nastavenou dobu („Počkat bez stahování“), kdyby Steam začal stahovat něco dalšího. Pak se objeví okno s odpočtem a po jeho skončení se počítač vypne, uspí nebo restartuje – podle toho, co sis vybral.

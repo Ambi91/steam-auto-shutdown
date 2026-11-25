@@ -34,7 +34,8 @@ For every game, Steam keeps a file `steamapps/appmanifest_<id>.acf` with its sta
 (`StateFlags`) and how many bytes are left to download. The app reads these files every
 5 s in all Steam libraries (listed in `libraryfolders.vdf`). It waits for everything that
 is downloading or waiting in Steam's download queue, and acts only once that queue is
-empty. If you pause a download in Steam while watching, the app waits and doesn't shut
+empty. Updates Steam has scheduled for later (the "Scheduled" section of Downloads) are
+not counted until Steam actually starts them. If you pause a download in Steam while watching, the app waits and doesn't shut
 down until you resume it or remove it from the queue. Games that were already paused
 before you started watching are ignored. The same is explained in the app under **Help**.
 
